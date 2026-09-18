@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { useToast } from '../../components/Toast'
 import { useSettings } from '../../contexts/SettingsContext'
 import { Save } from 'lucide-react'
+import MediaUploadField from '../../components/MediaUploadField'
+import CacheStatusPanel from '../../components/CacheStatusPanel'
 import './AdminCrud.css'
 
 export default function AdminSettings() {
@@ -11,7 +13,6 @@ export default function AdminSettings() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState({
     site_name: 'PromptHub',
     whatsapp_number: '',
@@ -40,22 +41,9 @@ export default function AdminSettings() {
     setLoading(false)
   }
 
-  async function handleUploadLogo(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `thumbnails/logo_${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('media').upload(path, file, { cacheControl: '3600', upsert: false })
-    if (error) {
-      toast(`Gagal upload logo: ${error.message}`, 'error', 6000)
-    } else {
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
-      setForm(prev => ({ ...prev, logo_url: urlData.publicUrl }))
-      toast('Logo terupload. Jangan lupa tekan Simpan.', 'info', 5000)
-    }
-    setUploading(false)
-  }
+  // v5.5 — upload ditangani <MediaUploadField>. cacheControl juga dinaikkan
+  // dari 3600 (1 jam) ke 31536000 (1 tahun): logo ikut diunduh di SETIAP
+  // halaman oleh setiap pengunjung, jadi ini pos egress yang paling sering.
 
   async function handleSave() {
     setSaving(true)
@@ -108,19 +96,20 @@ export default function AdminSettings() {
             </div>
 
             <div className="field-group">
-              <label className="field-label">Logo Website (rasio 1:1 / persegi)</label>
-              {form.logo_url ? (
-                <div className="upload-preview" style={{ width: 80, height: 80, background: 'var(--bg-dark)', padding: 8 }}>
-                  <img src={form.logo_url} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  <button className="remove-preview" onClick={() => setForm({ ...form, logo_url: '' })}>×</button>
-                </div>
-              ) : (
-                <label className="upload-area" style={{ maxWidth: 200, padding: 20 }}>
-                  <input type="file" accept="image/*" onChange={handleUploadLogo} />
-                  <div className="upload-icon">📤</div>
-                  <div className="upload-text" style={{ fontSize: 11 }}>{uploading ? 'Mengupload...' : 'Upload Logo'}</div>
-                </label>
-              )}
+              <MediaUploadField
+                label="Logo Website (rasio 1:1 / persegi)"
+                value={form.logo_url}
+                folder="thumbnails"
+                prefix="logo_"
+                accept="image/*"
+                kind="image"
+                previewHeight={90}
+                maxWidth={512}
+                onUploaded={url => setForm(prev => ({ ...prev, logo_url: url }))}
+                onRemove={() => setForm(prev => ({ ...prev, logo_url: '' }))}
+                onError={msg => toast(msg, 'error', 8000)}
+                onSuccess={() => toast('Logo terupload. Jangan lupa tekan Simpan.', 'info', 5000)}
+              />
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                 Setelah disimpan, logo otomatis dipakai di sidebar admin, halaman login, dan navbar web user.
               </p>
@@ -184,6 +173,9 @@ export default function AdminSettings() {
               ))}
             </div>
           </div>
+
+          {/* v5.5 — status cache di device admin ini sendiri */}
+          <CacheStatusPanel onToast={(msg, type) => toast(msg, type || 'success', 5000)} />
 
           {/* Action bar menempel di bawah supaya tombol simpan selalu terjangkau */}
           <div style={{

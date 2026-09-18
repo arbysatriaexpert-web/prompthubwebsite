@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Plus, Pencil, Trash2, Save, X } from 'lucide-react'
+import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
 import { useToast } from '../../components/Toast'
 
@@ -10,7 +11,6 @@ export default function AdminPopupBanners() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState({
     title: '', message: '', image_url: '', link_url: '',
     button_label: 'Lihat Selengkapnya', is_active: true,
@@ -29,19 +29,8 @@ export default function AdminPopupBanners() {
     setLoading(false)
   }
 
-  async function handleUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `popup-banners/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('media').upload(path, file)
-    if (!error) {
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
-      setForm(prev => ({ ...prev, image_url: urlData.publicUrl }))
-    }
-    setUploading(false)
-  }
+  // v5.5 — upload ditangani <MediaUploadField>. Versi lama tidak punya
+  // cabang else, jadi upload gagal tidak pernah terlihat.
 
   async function handleSave() {
     if (!form.title.trim()) return toast('Judul wajib diisi!', 'error')
@@ -157,19 +146,19 @@ export default function AdminPopupBanners() {
             </div>
           </div>
           <div className="field-group">
-            <label className="field-label">Gambar Banner</label>
-            {form.image_url ? (
-              <div className="upload-preview">
-                <img src={form.image_url} alt="banner" />
-                <button className="remove-preview" onClick={() => setForm({...form, image_url: ''})}>×</button>
-              </div>
-            ) : (
-              <label className="upload-area">
-                <input type="file" accept="image/*" onChange={handleUpload} />
-                <div className="upload-icon">📤</div>
-                <div className="upload-text">{uploading ? 'Mengupload...' : 'Klik untuk upload gambar'}</div>
-              </label>
-            )}
+            <MediaUploadField
+              label="Gambar Banner"
+              value={form.image_url}
+              folder="popup-banners"
+              accept="image/*"
+              kind="image"
+              previewHeight={150}
+              onUploaded={url => setForm(prev => ({ ...prev, image_url: url }))}
+              onRemove={() => setForm(prev => ({ ...prev, image_url: '' }))}
+              onError={msg => toast(msg, 'error', 8000)}
+              onSuccess={msg => toast(msg, 'success')}
+              hint="Banner muncul di layar setiap user yang login, jadi pilih gambar yang ringan."
+            />
           </div>
           {/* FIX: pilihan seberapa sering popup muncul */}
           <div className="field-group">
@@ -242,7 +231,7 @@ export default function AdminPopupBanners() {
                   </div>
                 </div>
                 {b.image_url && (
-                  <img src={b.image_url} alt="" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', marginLeft: 12 }} />
+                  <img loading="lazy" decoding="async" src={b.image_url} alt="" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', marginLeft: 12 }} />
                 )}
               </div>
               <div className="actions" style={{ marginTop: '10px' }}>

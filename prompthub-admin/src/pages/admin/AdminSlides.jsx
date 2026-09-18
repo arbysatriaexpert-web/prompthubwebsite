@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Plus, Pencil, Trash2, Save, X } from 'lucide-react'
+import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
 import { useToast } from '../../components/Toast'
 
@@ -10,7 +11,6 @@ export default function AdminSlides() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState({ image_url: '', tag_text: '🔥 Trending', title: '', link_to: '', sort_order: 0, is_active: true })
 
   // FIX: daftar tujuan link supaya admin tidak perlu mengetik path manual
@@ -45,18 +45,10 @@ export default function AdminSlides() {
     setLoading(false)
   }
 
-  async function handleUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const path = `slides/${Date.now()}.${file.name.split('.').pop()}`
-    const { error } = await supabase.storage.from('media').upload(path, file)
-    if (!error) {
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
-      setForm(prev => ({ ...prev, image_url: urlData.publicUrl }))
-    }
-    setUploading(false)
-  }
+  // v5.5 — upload ditangani <MediaUploadField>.
+  // Versi lama di sini hanya menulis `if (!error) { ... }` tanpa cabang else,
+  // jadi upload yang ditolak RLS atau kebesaran ukurannya lewat tanpa pesan
+  // apa pun — inilah salah satu sebab "preview tidak muncul".
 
   async function handleSave() {
     if (!form.title.trim()) return toast('Judul wajib diisi.', 'error')
@@ -109,23 +101,19 @@ export default function AdminSlides() {
         <div className="crud-form card">
           <h3 className="crud-form-title">{editingId ? 'Edit Slide' : 'Tambah Slide Baru'}</h3>
           <div className="field-group">
-            <label className="field-label">Gambar Slide</label>
-            {form.image_url ? (
-              <div className="upload-preview">
-                {form.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                  <video src={form.image_url} controls style={{ width: '100%', borderRadius: '8px' }} />
-                ) : (
-                  <img src={form.image_url} alt="slide" style={{ width: '100%', borderRadius: '8px' }} />
-                )}
-                <button className="remove-preview" onClick={() => setForm({...form, image_url: ''})}>×</button>
-              </div>
-            ) : (
-              <label className="upload-area">
-                <input type="file" accept="image/*,video/*" onChange={handleUpload} />
-                <div className="upload-icon">📤</div>
-                <div className="upload-text">{uploading ? 'Mengupload...' : 'Klik untuk upload'}</div>
-              </label>
-            )}
+            <MediaUploadField
+              label="Gambar Slide"
+              value={form.image_url}
+              folder="slides"
+              accept="image/*,video/*"
+              kind="both"
+              previewHeight={170}
+              onUploaded={url => setForm(prev => ({ ...prev, image_url: url }))}
+              onRemove={() => setForm(prev => ({ ...prev, image_url: '' }))}
+              onError={msg => toast(msg, 'error', 8000)}
+              onSuccess={msg => toast(msg, 'success')}
+              hint="Slide tampil di Home untuk semua pengunjung, jadi ini file yang paling sering diunduh. Pakai gambar kalau bisa."
+            />
           </div>
           <div className="crud-form-grid">
             <div className="field-group">
@@ -190,9 +178,9 @@ export default function AdminSlides() {
                 <td>
                   {s.image_url ? (
                     s.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                      <video src={s.image_url} muted style={{ width: 80, height: 40, objectFit: 'cover', borderRadius: 6 }} />
+                      <video src={s.image_url} muted preload="none" style={{ width: 80, height: 40, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
                     ) : (
-                      <img src={s.image_url} alt="" style={{ width: 80, height: 40, objectFit: 'cover', borderRadius: 6 }} />
+                      <img loading="lazy" decoding="async" src={s.image_url} alt="" style={{ width: 80, height: 40, objectFit: 'cover', borderRadius: 6 }} />
                     )
                   ) : '—'}
                 </td>

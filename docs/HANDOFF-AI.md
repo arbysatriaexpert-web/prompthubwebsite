@@ -47,11 +47,25 @@ sendiri sebagai halaman statis di GitHub Pages, dan dihubungkan lewat kolom
   pernah dibutuhkan di halaman daftar.
 - Daftar artikel memakai kolom `articles.excerpt` yang diisi otomatis oleh
   trigger database, supaya isi penuh artikel tidak ikut terkirim.
-- Upload gambar dari panel sudah dikecilkan di browser dan dikonversi ke
-  WebP sebelum dikirim, dengan `cacheControl: 31536000`. Jangan kembalikan
-  ke upload mentah.
+- Upload gambar dari panel dikecilkan di browser dan dikonversi ke WebP
+  sebelum dikirim, dengan `cacheControl: 31536000`. Semua ini dikerjakan
+  `src/components/MediaUploadField.jsx`; pakai komponen itu untuk SETIAP
+  kolom upload baru, jangan memanggil `supabase.storage.upload()` langsung.
+  (Catatan sejarah: sampai v5.4 paragraf ini sudah tertulis di sini padahal
+  kodenya belum pernah ada. File diunggah mentah tanpa `cacheControl`, jadi
+  browser pengunjung menanyakan ulang tiap jam. Baru benar sejak v5.5.)
 - Supabase Image Transformation **tidak dipakai** — fitur berbayar dan tiap
-  transformasi dihitung egress.
+  transformasi dihitung egress. Pengecilan dikerjakan di browser.
+- Jangan pasang `<video autoPlay>` langsung ke `thumbnail_url`. Itu mengunduh
+  seluruh video untuk setiap kartu, setiap kali halaman dibuka. Pakai
+  `<CardMedia>` dari `src/components/CachedMedia.jsx`: video baru diunduh
+  setelah kartunya masuk layar, lalu disimpan di IndexedDB device.
+- Query daftar yang bisa panjang wajib pakai `.range()`, bukan diambil semua
+  lalu difilter di browser. Contohnya ada di `src/pages/ToolsPage.jsx`.
+- Data yang jarang berubah dibungkus `swrQuery()` dari `src/lib/dataCache.js`.
+  Di panel admin, JANGAN cache daftar yang bisa diubah dari panel itu
+  sendiri — admin akan melihat data lama sesudah menyimpan dan mengira
+  gagal.
 
 **Anak-anak tangga yang gampang keliru**
 
@@ -75,6 +89,11 @@ sendiri sebagai halaman statis di GitHub Pages, dan dihubungkan lewat kolom
 | `src/contexts/AuthContext.jsx` | Sesi user dan profil |
 | `src/contexts/SettingsContext.jsx` | `site_settings` (logo, nama situs, nomor WA) |
 | `src/lib/articleUtils.jsx` | `safeUrl`, `makeExcerpt`, `RichText`, format tanggal |
+| `src/lib/mediaCache.js` | Cache gambar & video di IndexedDB device, TTL 1 tahun |
+| `src/lib/dataCache.js` | Cache hasil query (stale-while-revalidate) |
+| `src/lib/lazyWithRetry.js` | `React.lazy` + muat ulang sekali kalau chunk hilang |
+| `src/components/CachedMedia.jsx` | `CachedImage`, `CachedVideo`, `CardMedia` |
+| `src/components/Pagination.jsx` | Pager halaman Tools |
 | `src/components/ArticleCard.jsx` | Kartu Info AI & Tips |
 | `src/pages/ArticleDetailPage.jsx` | Halaman baca artikel |
 | `src/pages/ToolDetailPage/ToolDetailPage.jsx` | Detail prompt/generator + video tutorial |
@@ -89,6 +108,10 @@ sendiri sebagai halaman statis di GitHub Pages, dan dihubungkan lewat kolom
 | `src/pages/admin/AdminSlides.jsx` | Hero slide, link tujuan berupa dropdown |
 | `src/pages/admin/AdminUsers.jsx` | Kelola user, memanggil Edge Function |
 | `src/components/Toast.jsx` | Notifikasi, dipakai semua halaman admin |
+| `src/components/MediaUploadField.jsx` | **Satu-satunya** jalan upload media dari panel |
+| `src/components/CacheStatusPanel.jsx` | Status cache device, tampil di halaman Pengaturan |
+| `src/lib/uploadLimits.js` | Semua batas ukuran & `cacheControl` upload |
+| `src/lib/imageCompress.js` | Pengecilan + konversi WebP di browser |
 
 ## 5. Skema database (ringkas)
 
@@ -126,8 +149,19 @@ artikel otomatis.
   mana pun. Penghapusan akun architect sudah ditahan trigger database, tapi
   fungsinya sendiri sebaiknya ikut diperketat.
 - Artikel belum punya urutan manual seperti project; masih diurutkan tanggal.
-- Video tidak ikut dikompres saat upload, hanya gambar.
-- Belum ada pagination di halaman Tools; baru dibatasi jumlah maksimal.
+- Video tidak ikut dikompres saat upload, hanya gambar. Mengompres video di
+  browser butuh ffmpeg.wasm yang belasan MB — lebih merugikan daripada
+  menolong. Untuk sekarang batas 8 MB yang menahan.
+- `AdminProjects` masih memakai `select('*, categories(name, icon)')` untuk
+  daftarnya, jadi `prompt_data` semua baris ikut terkirim. Perlu kolom
+  cuplikan terpisah di database sebelum bisa diperbaiki tanpa mengubah
+  tampilan.
+- Bucket `media` kemungkinan disetel Public. Kalau benar, endpoint
+  `/object/public/` melewati RLS dan policy `media_public_read` yang
+  membatasi folder tidak berlaku untuk pembacaan lewat URL publik —
+  lampiran di `requests/{user_id}/` bisa diakses siapa saja yang tahu
+  path-nya. Dua jalan keluarnya dijelaskan di bagian F
+  `supabase/migrations/06_patch_v5.5.sql`.
 
 ## 8. Cara kerja yang diharapkan
 

@@ -1,0 +1,137 @@
+/* MediaUploadField — PromptHub v5.5
+   Mengikuti variabel warna yang sudah ada di index.css panel admin. */
+
+.mu-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.mu-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px dashed var(--border-light, rgba(255, 255, 255, 0.18));
+  border-radius: var(--radius-lg, 14px);
+  padding: 22px 12px;
+  min-height: 118px;
+  cursor: pointer;
+  background: var(--bg-dark, rgba(0, 0, 0, 0.2));
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mu-drop:hover {
+  border-color: var(--accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.mu-drop.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mu-drop input[type="file"] {
+  display: none;
+}
+
+.mu-drop-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.mu-drop-text {
+  font-size: 12px;
+  color: var(--text-muted, #9ca3af);
+  text-align: center;
+}
+
+.mu-preview {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 6px;
+  border-radius: var(--radius-lg, 14px);
+  background: var(--bg-dark, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+}
+
+/* Berlaku untuk gambar MAUPUN video. Dulu hanya `img` yang diberi ukuran,
+   sehingga preview video melar atau gepeng tergantung induknya. */
+.mu-media {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  border-radius: var(--radius-md, 10px);
+  object-fit: contain;
+  background: #000;
+}
+
+.mu-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-red, #ef4444);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.mu-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mu-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg, 14px);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mu-note {
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.mu-note--ok {
+  color: var(--accent-green, #10b981);
+}
+
+.mu-note--warn {
+  color: #fbbf24;
+}
+
+.mu-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mu-hint {
+  font-size: 11px;
+  color: var(--text-muted, #9ca3af);
+  margin-top: 6px;
+  line-height: 1.5;
+}

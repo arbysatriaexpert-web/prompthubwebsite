@@ -1,5 +1,15 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { CachedImage } from '../components/CachedMedia'
+import { swrQuery, dropCache, FRESH_LONG } from '../lib/dataCache'
+
+/**
+ * v5.5 — site_settings dibaca di SETIAP pemuatan halaman oleh provider ini,
+ * plus sekali lagi oleh PopupBanner dan AkunPage. Isinya hampir tidak pernah
+ * berubah, jadi sekarang disimpan di device dan hanya disegarkan tiap 6 jam.
+ * refreshSettings() memaksa ambil ulang — dipakai setelah admin menyimpan.
+ */
+const SETTINGS_KEY = 'site_settings:full'
 
 const SettingsContext = createContext({
   settings: null,
@@ -15,19 +25,33 @@ export function SettingsProvider({ children }) {
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const refreshSettings = useCallback(async () => {
-    // maybeSingle() -> tidak melempar error kalau row id=1 belum ada
-    const { data } = await supabase
-      .from('site_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle()
-
-    setSettings(data || null)
+  const load = useCallback(async (force = false) => {
+    try {
+      if (force) await dropCache(SETTINGS_KEY)
+      const { data } = await swrQuery(
+        SETTINGS_KEY,
+        async () => {
+          // maybeSingle() -> tidak melempar error kalau row id=1 belum ada
+          const { data, error } = await supabase
+            .from('site_settings')
+            .select('*')
+            .eq('id', 1)
+            .maybeSingle()
+          if (error) throw error
+          return data || null
+        },
+        { freshMs: force ? 0 : FRESH_LONG, force, onRevalidated: (d) => setSettings(d || null) },
+      )
+      setSettings(data || null)
+    } catch {
+      setSettings(null)
+    }
     setLoading(false)
   }, [])
 
-  useEffect(() => { refreshSettings() }, [refreshSettings])
+  const refreshSettings = useCallback(() => load(true), [load])
+
+  useEffect(() => { load(false) }, [load])
 
   return (
     <SettingsContext.Provider value={{ settings, loading, refreshSettings }}>
@@ -48,10 +72,11 @@ export function SiteLogo({ className = 'logo-icon', size }) {
 
   if (settings?.logo_url) {
     return (
-      <img
+      <CachedImage
         src={settings.logo_url}
         alt={name}
         className={className}
+        eager
         style={{ objectFit: 'cover', ...style }}
       />
     )

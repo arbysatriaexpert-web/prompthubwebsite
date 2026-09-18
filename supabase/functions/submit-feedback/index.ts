@@ -7,7 +7,7 @@
 // - site_settings.feedback_enabled harus ON
 // - Limit 2 feedback per user per hari
 // - Type harus valid (request/bug/glitch/feedback)
-// - Upload: foto max 2MB, video max 5MB
+// - Upload: foto & video max 2MB (v5.5 — video turun dari 5MB)
 // ============================================================
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
@@ -19,8 +19,18 @@ const corsHeaders = {
 }
 
 const VALID_TYPES = ['request', 'bug', 'glitch', 'feedback']
+// v5.5 — batas foto DAN video disamakan jadi 2 MB.
+//
+// Alasannya bukan sekadar hemat storage. Lampiran dikirim ke sini sebagai
+// base64, yang membengkakkan ukurannya ~33%: video 5 MB berarti body request
+// ~6,7 MB. File itu lalu diunduh lagi oleh admin lewat signed URL — jadi satu
+// laporan memakan egress dua kali. Pada free plan (5 GB/bulan) ini terasa.
+//
+// Angka ini HARUS sama dengan MAX_ATTACHMENT_SIZE di
+// prompthub-web/src/pages/AkunPage.jsx. Kalau salah satu saja diubah,
+// user akan melihat pesan gagal yang membingungkan.
 const MAX_PHOTO_SIZE = 2 * 1024 * 1024  // 2MB
-const MAX_VIDEO_SIZE = 5 * 1024 * 1024  // 5MB
+const MAX_VIDEO_SIZE = 2 * 1024 * 1024  // 2MB
 const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp']
 const ALLOWED_VIDEO_MIMES = ['video/mp4']
 const DAILY_LIMIT = 2
@@ -141,7 +151,7 @@ serve(async (req) => {
       }
 
       if (isVideo && fileSize > MAX_VIDEO_SIZE) {
-        return new Response(JSON.stringify({ error: 'Ukuran video maksimal 5MB' }), {
+        return new Response(JSON.stringify({ error: 'Ukuran video maksimal 2MB' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
@@ -161,6 +171,7 @@ serve(async (req) => {
         .from('media')
         .upload(filePath, bytes, {
           contentType: attachment_mime,
+          cacheControl: '31536000', // v5.5 — lampiran tidak pernah berubah
           upsert: false,
         })
 

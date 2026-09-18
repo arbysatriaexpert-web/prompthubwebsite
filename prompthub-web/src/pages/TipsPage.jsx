@@ -1,28 +1,41 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import ArticleCard from '../components/ArticleCard'
+import { swrQuery, FRESH_SHORT } from '../lib/dataCache'
 import './ArticlesPage.css'
 
+/**
+ * v5.5 — sama seperti InfoPage: hasil query disimpan di device 5 menit.
+ */
 export default function TipsPage() {
   const [articles, setArticles] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let alive = true
-    async function fetchArticles() {
-      setLoading(true)
-      const { data } = await supabase
-        .from('articles')
-        .select('id,title,thumbnail_url,excerpt,created_at')
-        .eq('category', 'tips')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false })
-        .limit(40)
-      if (!alive) return
-      setArticles(data || [])
-      setLoading(false)
-    }
-    fetchArticles()
+
+    swrQuery(
+      'articles:tips',
+      async () => {
+        const { data, error } = await supabase
+          .from('articles')
+          .select('id,title,thumbnail_url,excerpt,created_at')
+          .eq('category', 'tips')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+          .limit(40)
+        if (error) throw error
+        return data || []
+      },
+      { freshMs: FRESH_SHORT, onRevalidated: (d) => { if (alive) setArticles(d) } },
+    )
+      .then(({ data }) => {
+        if (!alive) return
+        setArticles(data || [])
+        setLoading(false)
+      })
+      .catch(() => { if (alive) setLoading(false) })
+
     return () => { alive = false }
   }, [])
 
@@ -34,7 +47,7 @@ export default function TipsPage() {
       </div>
 
       <div className="articles-list">
-        {loading ? (
+        {loading && articles.length === 0 ? (
           <div className="ah-grid">
             {Array(4).fill(0).map((_, i) => (
               <div key={i} className="skeleton" style={{ aspectRatio: '16 / 11', borderRadius: 16 }} />

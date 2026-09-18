@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useSettings } from '../contexts/SettingsContext'
+import { CachedImage } from './CachedMedia'
+import { swrQuery, FRESH_MEDIUM } from '../lib/dataCache'
 import { X } from 'lucide-react'
 
 /**
@@ -18,13 +21,16 @@ import { X } from 'lucide-react'
  */
 export default function PopupBanner() {
   const { user } = useAuth()
+  // v5.5 — popup_enabled diambil dari SettingsContext yang sudah ter-cache,
+  // bukan query site_settings terpisah pada setiap pemuatan halaman.
+  const { settings } = useSettings()
   const [banner, setBanner] = useState(null)
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (user) checkAndShow()
+    if (user && settings) checkAndShow()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
+  }, [user, settings])
 
   function seenKey(b) {
     const uid = user?.id || 'anon'
@@ -47,21 +53,40 @@ export default function PopupBanner() {
   }
 
   async function checkAndShow() {
-    const { data: settings } = await supabase
-      .from('site_settings').select('popup_enabled').eq('id', 1).maybeSingle()
     if (!settings || settings.popup_enabled === false) return
 
-    const now = new Date().toISOString()
-    const { data: banners } = await supabase
-      .from('popup_banners')
-      .select('id,title,message,image_url,link_url,button_label,display_mode,sort_order')
-      .eq('is_active', true)
-      .or(`start_at.is.null,start_at.lte.${now}`)
-      .or(`end_at.is.null,end_at.gte.${now}`)
-      .order('sort_order', { ascending: true })
-      .limit(5)
+    // Daftar banner aktif disimpan 30 menit di device. Rentang tanggal tetap
+    // diperiksa ulang di browser setiap kali, jadi banner yang sudah lewat
+    // masa tayangnya tidak akan muncul meski datanya dari cache.
+    let banners = []
+    try {
+      const res = await swrQuery(
+        'popup_banners:active',
+        async () => {
+          const { data, error } = await supabase
+            .from('popup_banners')
+            .select('id,title,message,image_url,link_url,button_label,display_mode,sort_order,start_at,end_at')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true })
+            .limit(5)
+          if (error) throw error
+          return data || []
+        },
+        { freshMs: FRESH_MEDIUM },
+      )
+      banners = res.data || []
+    } catch {
+      return
+    }
 
-    if (!banners || banners.length === 0) return
+    const nowMs = Date.now()
+    banners = banners.filter(b => {
+      const startOk = !b.start_at || new Date(b.start_at).getTime() <= nowMs
+      const endOk = !b.end_at || new Date(b.end_at).getTime() >= nowMs
+      return startOk && endOk
+    })
+
+    if (banners.length === 0) return
 
     const next = banners.find(b => !alreadySeen(b))
     if (!next) return
@@ -113,7 +138,7 @@ export default function PopupBanner() {
         </button>
 
         {banner.image_url && (
-          <img src={banner.image_url} alt={banner.title}
+          <CachedImage src={banner.image_url} alt={banner.title} eager
             style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }} />
         )}
 

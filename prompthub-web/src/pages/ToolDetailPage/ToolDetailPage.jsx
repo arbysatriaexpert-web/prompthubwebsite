@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { ArrowLeft, Heart, Copy, Check, Bug, ExternalLink, AlertCircle, Play } from 'lucide-react'
+import { CachedVideo } from '../../components/CachedMedia'
+import { swrQuery, dropCache, FRESH_SHORT } from '../../lib/dataCache'
 import './ToolDetailPage.css'
 
 /* ── Helper YouTube ───────────────────────────────────────── */
@@ -48,16 +50,20 @@ function TutorialPlayer({ url, ratio, poster }) {
     margin: '0 auto',
   }
 
+  // v5.5 — video yang di-host sendiri (bukan YouTube) tidak lagi dipasang
+  // langsung. CachedVideo menahan unduhan sampai tombol play ditekan, lalu
+  // menyimpan filenya di device supaya pemutaran berikutnya tidak menyentuh
+  // Supabase sama sekali. Ini pos egress terbesar di halaman detail.
   if (!ytId) {
     return (
       <div style={frameStyle}>
-        <video
+        <CachedVideo
           src={url}
-          controls
-          playsInline
-          preload="metadata"
           poster={poster || undefined}
-          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+          mode="click"
+          controls
+          maxBytes={80 * 1024 * 1024}
+          style={{ width: '100%', height: '100%' }}
         />
       </div>
     )
@@ -131,15 +137,32 @@ export default function ToolDetailPage() {
 
   useEffect(() => {
     let alive = true
+
     async function fetchData() {
       setLoading(true)
-      const { data } = await supabase
-        .from('projects')
-        .select('*, categories(name)')
-        .eq('id', id)
-        .maybeSingle()
-      if (!alive) return
-      setProject(data)
+
+      // v5.5 — baris project disimpan di device 5 menit. Bolak-balik antara
+      // daftar dan detail (pola paling umum) jadi tidak memicu query baru.
+      // prompt_data berukuran besar, jadi ini penghematan yang nyata.
+      try {
+        const { data } = await swrQuery(
+          `project:${id}`,
+          async () => {
+            const { data, error } = await supabase
+              .from('projects')
+              .select('*, categories(name)')
+              .eq('id', id)
+              .maybeSingle()
+            if (error) throw error
+            return data || null
+          },
+          { freshMs: FRESH_SHORT, onRevalidated: (d) => { if (alive) setProject(d) } },
+        )
+        if (!alive) return
+        setProject(data)
+      } catch {
+        if (alive) setProject(null)
+      }
 
       if (user) {
         const { data: bm } = await supabase
@@ -149,6 +172,7 @@ export default function ToolDetailPage() {
       }
       if (alive) setLoading(false)
     }
+
     fetchData()
     return () => { alive = false }
   }, [id, user])
@@ -188,6 +212,9 @@ export default function ToolDetailPage() {
       setIsBookmarked(true)
       await supabase.from('bookmarks').insert({ project_id: id, user_id: user.id })
     }
+    // Daftar favorit di halaman Akun ikut di-cache, jadi cache-nya dibuang
+    // supaya perubahan langsung terlihat di sana.
+    dropCache(`bookmarks:${user.id}`).catch(() => {})
   }
 
   if (loading) return <div className="detail-loading">Memuat...</div>

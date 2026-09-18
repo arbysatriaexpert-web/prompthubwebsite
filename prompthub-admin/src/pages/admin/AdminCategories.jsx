@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Plus, Pencil, Trash2, Save, X, Upload } from 'lucide-react'
+import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
 import { useToast } from '../../components/Toast'
 
@@ -20,23 +21,8 @@ export default function AdminCategories() {
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ name: '', icon: '', sort_order: 0, slug: '', is_active: true })
   const [showForm, setShowForm] = useState(false)
-  const [uploading, setUploading] = useState(false)
 
-  async function handleUploadIcon(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `thumbnails/cat_${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('media').upload(path, file)
-    if (!error) {
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
-      setForm(prev => ({ ...prev, icon: urlData.publicUrl }))
-    } else {
-      toast('Gagal upload ikon: ' + error.message, 'error')
-    }
-    setUploading(false)
-  }
+  // v5.5 — upload ditangani <MediaUploadField>.
 
   useEffect(() => { fetchCategories() }, [])
 
@@ -125,19 +111,21 @@ export default function AdminCategories() {
           <h3 className="crud-form-title">{editingId ? 'Edit Kategori' : 'Tambah Kategori Baru'}</h3>
           <div className="crud-form-grid">
             <div className="field-group">
-              <label className="field-label">Ikon (Foto 1:1)</label>
-              {form.icon && form.icon.startsWith('http') ? (
-                <div className="upload-preview" style={{ width: 80, height: 80 }}>
-                  <img src={form.icon} alt="icon" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-                  <button className="remove-preview" onClick={() => setForm({...form, icon: ''})}>×</button>
-                </div>
-              ) : (
-                <label className="upload-area" style={{ padding: '20px' }}>
-                  <input type="file" accept="image/*" onChange={handleUploadIcon} />
-                  <div className="upload-icon">📤</div>
-                  <div className="upload-text" style={{ fontSize: '11px' }}>{uploading ? 'Mengupload...' : 'Upload foto (wajib 1:1)'}</div>
-                </label>
-              )}
+              <MediaUploadField
+                label="Ikon (Foto 1:1)"
+                value={form.icon && form.icon.startsWith('http') ? form.icon : ''}
+                folder="thumbnails"
+                prefix="cat_"
+                accept="image/*"
+                kind="image"
+                previewHeight={90}
+                maxWidth={512}
+                onUploaded={url => setForm(prev => ({ ...prev, icon: url }))}
+                onRemove={() => setForm(prev => ({ ...prev, icon: '' }))}
+                onError={msg => toast(msg, 'error', 8000)}
+                onSuccess={msg => toast(msg, 'success')}
+                hint="Ikon ditampilkan kecil, jadi dikecilkan ke maksimal 512 px. Boleh juga dikosongkan dan diisi emoji di kolom mana pun yang tersedia."
+              />
             </div>
             <div className="field-group">
               <label className="field-label">Nama Kategori</label>
@@ -187,7 +175,7 @@ export default function AdminCategories() {
               <tr key={cat.id} style={{ opacity: cat.is_active === false ? 0.5 : 1 }}>
                 <td style={{ fontSize: '22px' }}>
                   {cat.icon?.startsWith('http') ? (
-                    <img src={cat.icon} alt={cat.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8 }} />
+                    <img loading="lazy" decoding="async" src={cat.icon} alt={cat.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8 }} />
                   ) : (
                     cat.icon || '—'
                   )}

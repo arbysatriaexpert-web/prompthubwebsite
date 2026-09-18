@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { LogOut, Send, Bookmark, Clock, UploadCloud, X } from 'lucide-react'
+import { CardMedia } from '../components/CachedMedia'
+import { swrQuery, dropCache, FRESH_SHORT, FRESH_MEDIUM } from '../lib/dataCache'
 import './AkunPage.css'
 
 const TYPE_OPTIONS = [
@@ -12,17 +14,32 @@ const TYPE_OPTIONS = [
   { value: 'feedback', label: '💬 Feedback', desc: 'Saran umum' },
 ]
 
-const MAX_PHOTO_SIZE = 2 * 1024 * 1024  // 2MB
-const MAX_VIDEO_SIZE = 5 * 1024 * 1024  // 5MB
+/**
+ * v5.5 — BATAS LAMPIRAN DISAMAKAN JADI 2 MB
+ *
+ * Sebelumnya video boleh 5 MB. Angka itu menyesatkan: lampiran dikirim ke
+ * Edge Function dalam bentuk base64, yang membengkakkan ukurannya ~33%.
+ * Video 5 MB berarti body request ~6,7 MB, dan file itu nanti diunduh lagi
+ * oleh admin lewat signed URL — dua kali kena egress untuk satu laporan.
+ *
+ * Batas baru 2 MB untuk foto maupun video. Angka ini HARUS sama dengan yang
+ * ada di supabase/functions/submit-feedback/index.ts. Kalau salah satu saja
+ * diubah, user akan melihat pesan gagal yang membingungkan.
+ */
+const MAX_ATTACHMENT_SIZE = 2 * 1024 * 1024 // 2MB — foto & video
+
+function formatMB(bytes) {
+  return (bytes / (1024 * 1024)).toFixed(1).replace('.0', '')
+}
 
 export default function AkunPage() {
   const { user, profile, signOut } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  
+
   const [bookmarks, setBookmarks] = useState([])
   const [activeTab, setActiveTab] = useState('bookmarks')
-  
+
   // Feedback form state
   const [feedbackType, setFeedbackType] = useState(searchParams.get('type') || 'request')
   const [feedbackMessage, setFeedbackMessage] = useState('')
@@ -40,32 +57,73 @@ export default function AkunPage() {
     fetchBookmarks()
     checkFeedbackEnabled()
 
-    // Auto-switch to request tab if coming from ToolDetailPage
     if (searchParams.get('type')) {
       setActiveTab('request')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
+  /**
+   * Preview lampiran.
+   *
+   * Object URL dibuat di dalam effect dan dilepas di cleanup-nya. Pola ini
+   * penting: kalau revoke dipanggil di tempat lain (misalnya langsung setelah
+   * createObjectURL, atau di handler tombol), gambar bisa hilang sebelum
+   * browser sempat menggambarnya.
+   */
+  useEffect(() => {
+    if (!feedbackFile) {
+      setFeedbackFilePreview('')
+      return
+    }
+    const url = URL.createObjectURL(feedbackFile)
+    setFeedbackFilePreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [feedbackFile])
+
   async function fetchBookmarks() {
-    const { data } = await supabase
-      .from('bookmarks')
-      .select('projects(id,title,thumbnail_url,content_type)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      
-    if (data) {
-      const formatted = data.map(b => b.projects).filter(Boolean)
-      setBookmarks(formatted)
+    try {
+      const { data } = await swrQuery(
+        `bookmarks:${user.id}`,
+        async () => {
+          const { data, error } = await supabase
+            .from('bookmarks')
+            .select('projects(id,title,thumbnail_url,content_type)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+          if (error) throw error
+          return (data || []).map(b => b.projects).filter(Boolean)
+        },
+        { freshMs: FRESH_SHORT, onRevalidated: setBookmarks },
+      )
+      setBookmarks(data || [])
+    } catch {
+      setBookmarks([])
     }
   }
 
   async function checkFeedbackEnabled() {
-    const { data } = await supabase
-      .from('site_settings')
-      .select('feedback_enabled')
-      .eq('id', 1)
-      .single()
-    if (data) setFeedbackEnabled(data.feedback_enabled !== false)
+    try {
+      const { data } = await swrQuery(
+        'site_settings:feedback_enabled',
+        async () => {
+          const { data, error } = await supabase
+            .from('site_settings')
+            .select('feedback_enabled')
+            .eq('id', 1)
+            .maybeSingle()
+          if (error) throw error
+          return data || null
+        },
+        {
+          freshMs: FRESH_MEDIUM,
+          onRevalidated: (d) => setFeedbackEnabled(d ? d.feedback_enabled !== false : true),
+        },
+      )
+      setFeedbackEnabled(data ? data.feedback_enabled !== false : true)
+    } catch {
+      setFeedbackEnabled(true)
+    }
   }
 
   async function handleSignOut() {
@@ -74,53 +132,65 @@ export default function AkunPage() {
   }
 
   function handleFileSelect(e) {
-    const file = e.target.files?.[0]
+    const input = e.target
+    const file = input.files?.[0]
+
+    // Reset nilai input supaya memilih file yang SAMA dua kali tetap memicu
+    // onChange. Tanpa ini, user yang menghapus lampiran lalu memilih file
+    // yang sama merasa tombolnya tidak berfungsi.
+    input.value = ''
+
     if (!file) return
 
-    // Client-side size validation
     const isImage = file.type.startsWith('image/')
     const isVideo = file.type.startsWith('video/')
 
     if (!isImage && !isVideo) {
+      setFeedbackFile(null)
       return setError('Format tidak didukung. Foto: JPEG/PNG/WebP. Video: MP4.')
     }
 
-    if (isImage && file.size > MAX_PHOTO_SIZE) {
-      return setError('Ukuran foto maksimal 2MB')
-    }
-
-    if (isVideo && file.size > MAX_VIDEO_SIZE) {
-      return setError('Ukuran video maksimal 5MB')
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      setFeedbackFile(null)
+      return setError(
+        `Ukuran ${isVideo ? 'video' : 'foto'} maksimal ${formatMB(MAX_ATTACHMENT_SIZE)}MB. ` +
+        `File kamu ${formatMB(file.size)}MB — coba dipotong atau dikecilkan dulu.`,
+      )
     }
 
     setFeedbackFile(file)
-    setFeedbackFilePreview(URL.createObjectURL(file))
     setError('')
   }
 
   async function handleSubmitFeedback(e) {
     e.preventDefault()
     if (!feedbackMessage.trim()) return setError('Pesan tidak boleh kosong')
-    
+
     setSending(true)
     setError('')
     setSuccess(false)
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      
-      // Prepare body
+
       const body = {
         message: feedbackMessage.trim(),
         type: feedbackType,
         project_id: projectId || undefined,
       }
 
-      // If file, convert to base64
       if (feedbackFile) {
+        // Penjagaan terakhir sebelum kirim: ukuran bisa saja berubah kalau
+        // state sempat diutak-atik dari luar handler pemilihan file.
+        if (feedbackFile.size > MAX_ATTACHMENT_SIZE) {
+          setSending(false)
+          return setError(`Lampiran melebihi ${formatMB(MAX_ATTACHMENT_SIZE)}MB.`)
+        }
+
         const reader = new FileReader()
-        const base64 = await new Promise((resolve) => {
-          reader.onload = () => resolve(reader.result.split(',')[1])
+        const base64 = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result).split(',')[1])
+          reader.onerror = () => reject(new Error('Gagal membaca file'))
           reader.readAsDataURL(feedbackFile)
         })
         body.attachment_base64 = base64
@@ -147,7 +217,6 @@ export default function AkunPage() {
         setSuccess(true)
         setFeedbackMessage('')
         setFeedbackFile(null)
-        setFeedbackFilePreview('')
         setProjectId('')
         setProjectName('')
         setTimeout(() => setSuccess(false), 5000)
@@ -158,7 +227,11 @@ export default function AkunPage() {
     setSending(false)
   }
 
-  // Role label
+  async function removeBookmarkCacheAndReload() {
+    await dropCache(`bookmarks:${user.id}`)
+    fetchBookmarks()
+  }
+
   const roleLabel = profile?.role === 'architect' ? 'Architect' : profile?.role === 'admin' ? 'Administrator' : 'Member'
 
   return (
@@ -182,13 +255,13 @@ export default function AkunPage() {
 
       {/* ── TABS ── */}
       <div className="akun-tabs">
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'bookmarks' ? 'active' : ''}`}
           onClick={() => setActiveTab('bookmarks')}
         >
           <Bookmark size={16} /> Favorit Saya
         </button>
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'request' ? 'active' : ''}`}
           onClick={() => setActiveTab('request')}
         >
@@ -204,19 +277,26 @@ export default function AkunPage() {
               <Clock size={40} />
               <p>Belum ada tool yang difavoritkan.</p>
               <button className="btn btn-primary" onClick={() => navigate('/tools')}>Cari Tool</button>
+              <button
+                className="btn btn-ghost"
+                style={{ marginTop: 8, fontSize: 12 }}
+                onClick={removeBookmarkCacheAndReload}
+              >
+                Muat ulang daftar
+              </button>
             </div>
           ) : (
             <div className="bookmarks-grid">
               {bookmarks.map(item => {
-                const isVideo = item.thumbnail_url?.match(/\.(mp4|webm|ogg)$/i)
                 const typeLabel = item.content_type === 'generator' ? 'Generator' : 'Prompt'
                 return (
                   <div key={item.id} className="bookmark-card card" onClick={() => navigate(`/tools/${item.id}`)}>
-                    {isVideo ? (
-                      <video src={item.thumbnail_url} className="bookmark-thumb" autoPlay muted loop playsInline />
-                    ) : (
-                      <img src={item.thumbnail_url || 'https://via.placeholder.com/150'} alt={item.title} className="bookmark-thumb" loading="lazy" />
-                    )}
+                    <CardMedia
+                      url={item.thumbnail_url}
+                      alt={item.title}
+                      className="bookmark-thumb"
+                      emptyClassName="bookmark-thumb"
+                    />
                     <div className="bookmark-details">
                       <h4>{item.title}</h4>
                       <span className="badge">{typeLabel}</span>
@@ -233,7 +313,7 @@ export default function AkunPage() {
       {activeTab === 'request' && (
         <div className="tab-content request-content card">
           <h3 style={{marginBottom: 8, fontSize: 18}}>Kirim Masukan / Laporan</h3>
-          
+
           {!feedbackEnabled ? (
             <div style={{
               padding: '16px', borderRadius: '10px', textAlign: 'center',
@@ -248,7 +328,6 @@ export default function AkunPage() {
                 Punya ide, temukan bug, atau ingin kasih feedback? Kirim ke admin! (Maks 2/hari)
               </p>
 
-              {/* Project context from ToolDetailPage */}
               {projectName && (
                 <div style={{
                   padding: '8px 12px', borderRadius: '8px', marginBottom: '12px',
@@ -256,7 +335,7 @@ export default function AkunPage() {
                   fontSize: '12px', color: 'var(--accent)',
                 }}>
                   📦 Terkait: <strong>{projectName}</strong>
-                  <button 
+                  <button
                     onClick={() => { setProjectId(''); setProjectName('') }}
                     style={{ marginLeft: '8px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '11px' }}
                   >✕ Hapus</button>
@@ -264,7 +343,6 @@ export default function AkunPage() {
               )}
 
               <form onSubmit={handleSubmitFeedback} className="request-form">
-                {/* Type picker */}
                 <div className="field-group">
                   <label className="field-label">Tipe Masukan</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
@@ -290,7 +368,7 @@ export default function AkunPage() {
 
                 <div className="field-group">
                   <label className="field-label">Pesan *</label>
-                  <textarea 
+                  <textarea
                     className="input"
                     rows={4}
                     placeholder="Ceritakan detail masukan kamu..."
@@ -305,7 +383,9 @@ export default function AkunPage() {
                 </div>
 
                 <div className="field-group">
-                  <label className="field-label">Lampiran (Opsional) — Foto max 2MB, Video max 5MB</label>
+                  <label className="field-label">
+                    Lampiran (Opsional) — foto atau video, maksimal {formatMB(MAX_ATTACHMENT_SIZE)}MB
+                  </label>
                   {feedbackFilePreview ? (
                     <div className="media-preview-box">
                       {feedbackFile?.type?.startsWith('video/') ? (
@@ -313,15 +393,18 @@ export default function AkunPage() {
                       ) : (
                         <img src={feedbackFilePreview} alt="Preview" className="preview-media" />
                       )}
-                      <button type="button" className="btn-remove-media" onClick={() => { setFeedbackFile(null); setFeedbackFilePreview('') }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                        {feedbackFile?.name} — {formatMB(feedbackFile?.size || 0)}MB
+                      </div>
+                      <button type="button" className="btn-remove-media" onClick={() => setFeedbackFile(null)}>
                         <X size={14} /> Hapus
                       </button>
                     </div>
                   ) : (
                     <label className="upload-dropzone">
-                      <input 
-                        type="file" 
-                        accept="image/jpeg,image/png,image/webp,video/mp4" 
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,video/mp4"
                         onChange={handleFileSelect}
                         style={{ display: 'none' }}
                       />
@@ -336,7 +419,7 @@ export default function AkunPage() {
                     ❌ {error}
                   </div>
                 )}
-                
+
                 {success && (
                   <div style={{ background: 'rgba(16,185,129,0.1)', color: 'var(--accent-green)', padding: 12, borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
                     ✅ Masukan berhasil dikirim! Terima kasih.

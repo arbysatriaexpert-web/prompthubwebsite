@@ -1,5 +1,112 @@
 # Changelog
 
+## v5.5 — 18 September 2026
+
+Fokus rilis ini: memangkas egress Supabase supaya free plan (5 GB/bulan)
+cukup, plus dua perbaikan bug yang dilaporkan.
+
+### Egress — yang paling berdampak
+
+- **Thumbnail video di kartu tidak lagi `<video autoPlay>` polos.** Ini pos
+  pemborosan terbesar yang ditemukan: setiap video thumbnail diunduh utuh,
+  untuk setiap kartu, setiap kali halaman dibuka. Sepuluh kartu video 3 MB
+  berarti 30 MB sekali muat. Sekarang video baru diunduh setelah kartunya
+  benar-benar masuk layar, lalu disimpan di device — kunjungan berikutnya
+  nol byte. Berlaku di Home, Tools, slide carousel, dan daftar Favorit.
+- **Upload dari panel akhirnya benar-benar dikompres.** `HANDOFF-AI.md`
+  sudah menyatakan gambar dikecilkan ke WebP dengan `cacheControl` satu
+  tahun, tapi kodenya tidak pernah ada — file diunggah mentah tanpa
+  `cacheControl` sama sekali. Karena default Supabase cuma 3600 detik,
+  browser pengunjung menanyakan ulang setiap file media tiap jam. Sekarang
+  gambar dikecilkan maksimal 1600 px, dikonversi ke WebP, dan diunggah
+  dengan umur cache satu tahun.
+- **Halaman Tools memakai pagination di sisi server.** Sebelumnya seluruh
+  baris `projects` yang published diambil sekaligus tanpa `.limit()`, lalu
+  difilter kategori di browser. Sekarang 12 baris per halaman lewat
+  `.range()`, filter kategori dikerjakan database.
+- **Hasil query disimpan di device** dengan pola stale-while-revalidate.
+  Bolak-balik antar halaman tidak lagi mengirim query baru setiap kali.
+  `site_settings` yang tadinya dibaca tiga kali per pemuatan halaman
+  sekarang dibaca sekali per enam jam.
+- **Video tutorial di halaman detail baru diunduh setelah tombol play
+  ditekan.** `preload="metadata"` sebelumnya tetap menarik data untuk setiap
+  pengunjung yang membuka halaman, termasuk yang tidak berniat menonton.
+
+### Ukuran bundel
+
+- Code splitting per halaman dengan `React.lazy` di web maupun panel.
+  Pengunjung yang hanya membuka Home tidak lagi mengunduh kode seluruh
+  halaman lain. Panel paling untung: admin yang cuma mengurus artikel
+  dulunya tetap mengunduh kode halaman user, kategori, slide, dan popup.
+- `lazyWithRetry` menangani kasus tab lama + deploy baru: nama chunk
+  berubah, import gagal, halaman dimuat ulang sekali otomatis. Tanpa ini,
+  code splitting menghasilkan layar putih setiap kali ada deploy.
+- Vendor dipisah jadi chunk sendiri (`react`, `router`, `supabase`,
+  `icons`), jadi tetap terpakai dari cache browser setelah deploy baru.
+- `netlify.toml` kedua app: `/assets/*` di-cache satu tahun dengan
+  `immutable`, `index.html` `must-revalidate`. Ditambah header keamanan
+  dasar; panel admin juga `X-Frame-Options: DENY` dan `noindex`.
+
+### Perbaikan bug
+
+- **Preview upload di panel tidak muncul setelah file dipilih.** Akarnya
+  tiga, semuanya diperbaiki sekaligus lewat komponen `MediaUploadField`:
+  (1) preview dulu hanya dirender setelah upload ke Supabase selesai, jadi
+  selama menunggu layar kosong — sekarang preview muncul seketika dari file
+  lokal, tidak menyentuh jaringan sama sekali; (2) halaman Slides, Popup
+  Banner, dan Kategori cuma menulis `if (!error) { ... }` tanpa cabang else,
+  jadi upload yang ditolak RLS lewat tanpa pesan apa pun — sekarang setiap
+  error dilaporkan lewat toast dengan pesan asli Supabase; (3) `AdminCrud.css`
+  hanya punya aturan ukuran untuk `img`, tidak untuk `video`, sehingga
+  preview video melar atau gepeng.
+- Memilih file yang sama dua kali berturut-turut sekarang tetap memicu
+  `onChange`. Sebelumnya nilai input tidak direset, jadi hapus lampiran lalu
+  pilih file yang sama terasa seperti tombolnya rusak. Berlaku di panel
+  maupun form masukan di web.
+
+### Batas ukuran
+
+- Lampiran masukan dari user turun dari 5 MB jadi **2 MB** untuk video,
+  menyamai batas foto. Lampiran dikirim sebagai base64 yang membengkak ~33%,
+  jadi video 5 MB berarti body request ~6,7 MB — dan file itu diunduh lagi
+  oleh admin lewat signed URL. Diubah di `AkunPage.jsx` dan
+  `submit-feedback/index.ts`; keduanya harus selalu sama.
+- Batas upload panel dibuat eksplisit: gambar 5 MB, video 8 MB, ditambah
+  batas 10 MB di level bucket lewat SQL sebagai pertahanan terakhir.
+
+### Panel
+
+- Halaman Pengaturan punya kotak **Cache di Device Ini**: status penyimpanan
+  permanen, jumlah dan ukuran file tersimpan, serta tanggal kedaluwarsa per
+  file. Ada juga tombol untuk meminta penyimpanan permanen dan membersihkan
+  cache.
+- Daftar data di panel sengaja **tidak** di-cache. Panel adalah tempat data
+  diubah; daftar yang di-cache akan membuat admin melihat data lama sesudah
+  menyimpan dan mengira gagal — persis jenis bug yang sudah beberapa kali
+  muncul di project ini. Yang di-cache di panel hanya media dan
+  `site_settings`, dan yang terakhir dibuang cache-nya tepat setelah Simpan.
+
+### Database
+
+- Index untuk pagination (`is_published, sort_order, created_at` dan
+  variannya dengan `category_id`) supaya halaman ke-9 sama murahnya dengan
+  halaman pertama.
+- Index untuk hitungan batas feedback harian.
+- Policy `media_admin_update` ditulis ulang dengan `WITH CHECK` yang
+  eksplisit. Sebelumnya hanya ada `USING`; Postgres memakainya sebagai
+  pengganti, kebetulan aman, tapi perilakunya tidak eksplisit.
+
+### Belum dikerjakan
+
+- `AdminProjects` masih menarik `prompt_data` untuk semua baris di daftar.
+- Lampiran feedback kemungkinan bisa diakses publik kalau bucket `media`
+  disetel Public — endpoint `/object/public/` melewati RLS, jadi policy
+  pembatas folder tidak berlaku untuk pembacaan lewat URL publik.
+  Penjelasan dan dua jalan keluarnya ada di bagian F `06_patch_v5.5.sql`.
+- Video tetap tidak dikompres saat upload, hanya gambar.
+
+---
+
 ## v5.4 — 18 September 2026
 
 ### Tampilan artikel & tips

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { makeExcerpt, formatDate, readingTime } from '../lib/articleUtils'
+import { CachedImage } from './CachedMedia'
 
 /**
  * Satu kartu untuk Info AI maupun Tips & Trik.
@@ -38,11 +39,10 @@ export default function ArticleCard({ article, variant = 'news', featured = fals
     >
       <div className="ah-media">
         {article.thumbnail_url ? (
-          <img
+          <CachedImage
             className="ah-img"
             src={article.thumbnail_url}
             alt=""
-            loading="lazy"
             onError={e => { e.currentTarget.style.visibility = 'hidden' }}
           />
         ) : (

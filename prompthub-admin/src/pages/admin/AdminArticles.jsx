@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Plus, Pencil, Trash2, Save, X } from 'lucide-react'
+import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
 import { useToast } from '../../components/Toast'
 
@@ -10,7 +11,6 @@ export default function AdminArticles() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [uploading, setUploading] = useState(false)
   const [tab, setTab] = useState('all') // all, info-ai, tips
   const [form, setForm] = useState({
     title: '', content: '', category: 'info-ai', thumbnail_url: '', is_published: false,
@@ -27,22 +27,7 @@ export default function AdminArticles() {
     setLoading(false)
   }
 
-  async function handleUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `articles/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('media').upload(path, file)
-    if (error) {
-      toast(`Gagal upload gambar: ${error.message}`, 'error', 6000)
-    } else {
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
-      setForm(prev => ({ ...prev, thumbnail_url: urlData.publicUrl }))
-      toast('Gambar berhasil diupload', 'success')
-    }
-    setUploading(false)
-  }
+  // v5.5 — upload ditangani <MediaUploadField> (lihat catatan di AdminProjects).
 
   /**
    * FIX v5.4: dulu hasil update/insert tidak pernah diperiksa. Kalau RLS
@@ -184,19 +169,19 @@ export default function AdminArticles() {
           </div>
 
           <div className="field-group">
-            <label className="field-label">Thumbnail</label>
-            {form.thumbnail_url ? (
-              <div className="upload-preview">
-                <img src={form.thumbnail_url} alt="thumb" />
-                <button className="remove-preview" onClick={() => setForm({...form, thumbnail_url: ''})}>×</button>
-              </div>
-            ) : (
-              <label className="upload-area">
-                <input type="file" accept="image/*" onChange={handleUpload} />
-                <div className="upload-icon">📤</div>
-                <div className="upload-text">{uploading ? 'Mengupload...' : 'Klik untuk upload gambar'}</div>
-              </label>
-            )}
+            <MediaUploadField
+              label="Thumbnail"
+              value={form.thumbnail_url}
+              folder="articles"
+              accept="image/*"
+              kind="image"
+              previewHeight={150}
+              onUploaded={url => setForm(prev => ({ ...prev, thumbnail_url: url }))}
+              onRemove={() => setForm(prev => ({ ...prev, thumbnail_url: '' }))}
+              onError={msg => toast(msg, 'error', 8000)}
+              onSuccess={msg => toast(msg, 'success')}
+              hint="Gambar otomatis dikecilkan maksimal 1600 px dan dikonversi ke WebP."
+            />
           </div>
           <div className="toggle-row">
             <div className={`toggle ${form.is_published ? 'active' : ''}`} onClick={() => setForm({...form, is_published: !form.is_published})} />

@@ -166,3 +166,64 @@
 .empty-tools p {
   font-size: 13px;
 }
+
+/* ──────────────────────────────────────────────
+   v5.5 — PAGINATION
+   ────────────────────────────────────────────── */
+
+.ph-pager {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px 8px;
+}
+
+.ph-pager-info {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ph-pager-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ph-pager-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.ph-pager-btn:hover:not(:disabled) {
+  border-color: var(--accent, #6366f1);
+  color: var(--text-white, #fff);
+}
+
+.ph-pager-btn.is-active {
+  background: var(--accent, #6366f1);
+  border-color: var(--accent, #6366f1);
+  color: #fff;
+}
+
+.ph-pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ph-pager-gap {
+  color: var(--text-muted);
+  padding: 0 2px;
+  font-size: 13px;
+}

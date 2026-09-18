@@ -4,8 +4,20 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { Play, FileText, ChevronRight } from 'lucide-react'
 import { makeExcerpt, formatDate, safeUrl } from '../lib/articleUtils'
+import { CardMedia, CachedImage } from '../components/CachedMedia'
+import { swrQuery, FRESH_SHORT, FRESH_LONG } from '../lib/dataCache'
 import './HomePage.css'
 import './ArticlesPage.css'
+
+/**
+ * v5.5 — perubahan di halaman ini:
+ *  - Hasil query disimpan di device (dataCache). Kembali ke Home dari halaman
+ *    lain tidak lagi memicu 3–5 request baru ke Supabase setiap kali.
+ *  - Semua thumbnail lewat CardMedia: video baru diunduh setelah kartunya
+ *    terlihat, dan hanya sekali seumur device.
+ *  - Slide carousel ikut aturan yang sama; slide yang belum tampil (terpotong
+ *    overflow:hidden) tidak mengunduh apa-apa.
+ */
 
 export default function HomePage() {
   const [slides, setSlides] = useState([])
@@ -26,23 +38,50 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [slides])
 
+  /* ── Slide & kategori: milik semua orang, umur cache panjang ────── */
   useEffect(() => {
     let alive = true
 
-    async function fetchData() {
-      setLoading(true)
+    swrQuery(
+      'home:slides',
+      async () => {
+        const { data, error } = await supabase
+          .from('hero_slides')
+          .select('id,image_url,title,tag_text,link_to,sort_order')
+          .eq('is_active', true)
+          .order('sort_order')
+        if (error) throw error
+        return data || []
+      },
+      { freshMs: FRESH_LONG, onRevalidated: (d) => { if (alive) setSlides(d) } },
+    ).then(({ data }) => { if (alive) setSlides(data || []) }).catch(() => {})
 
-      // Slide & kategori boleh dibaca siapa saja
-      const [slideRes, catRes] = await Promise.all([
-        supabase.from('hero_slides').select('id,image_url,title,tag_text,link_to,sort_order').eq('is_active', true).order('sort_order'),
-        supabase.from('categories').select('id,name,icon,slug,sort_order').eq('is_active', true).order('sort_order'),
-      ])
-      if (!alive) return
-      if (!slideRes.error) setSlides(slideRes.data || [])
-      if (!catRes.error) setCategories(catRes.data || [])
+    swrQuery(
+      'categories:active',
+      async () => {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('id,name,icon,slug,sort_order')
+          .eq('is_active', true)
+          .order('sort_order')
+        if (error) throw error
+        return data || []
+      },
+      { freshMs: FRESH_LONG, onRevalidated: (d) => { if (alive) setCategories(d) } },
+    ).then(({ data }) => { if (alive) setCategories(data || []) }).catch(() => {})
 
+    return () => { alive = false }
+  }, [])
+
+  /* ── Konten utama: beda untuk tamu dan user login ───────────────── */
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+
+    const cacheKey = user ? 'home:content:auth' : 'home:content:guest'
+
+    async function fetchContent() {
       if (user) {
-        // Sudah login: baca penuh, diurutkan sesuai urutan yang diatur di panel
         const [projRes, trendRes, tipsRes] = await Promise.all([
           supabase.from('projects').select('id,title,thumbnail_url,aspect_ratio,content_type')
             .eq('is_published', true).eq('is_featured', true)
@@ -56,48 +95,56 @@ export default function HomePage() {
             .eq('is_published', true).eq('category', 'tips')
             .order('created_at', { ascending: false }).limit(3),
         ])
-        if (!alive) return
-        if (!projRes.error) setFeaturedProjects(projRes.data || [])
-        if (!trendRes.error) setTrendingProjects(trendRes.data || [])
-        if (!tipsRes.error) setTipsArticles(tipsRes.data || [])
-      } else {
-        // Belum login: pakai RPC preview yang HANYA mengirim judul + thumbnail.
-        // Isi prompt dan tool_url tidak pernah dikirim ke tamu.
-        const [prevRes, tipsRes] = await Promise.all([
-          supabase.rpc('public_home_preview'),
-          supabase.rpc('public_tips_preview'),
-        ])
-        if (!alive) return
-        const rows = prevRes.data || []
-        setFeaturedProjects(
-          rows.filter(r => r.is_featured)
-            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).slice(0, 6)
-        )
-        setTrendingProjects(
-          rows.filter(r => r.is_trending)
-            .sort((a, b) => (a.trending_order || 0) - (b.trending_order || 0)).slice(0, 6)
-        )
-        setTipsArticles(tipsRes.data || [])
+        return {
+          featured: projRes.error ? [] : (projRes.data || []),
+          trending: trendRes.error ? [] : (trendRes.data || []),
+          tips: tipsRes.error ? [] : (tipsRes.data || []),
+        }
       }
 
-      if (alive) setLoading(false)
+      // Belum login: RPC preview yang HANYA mengirim judul + thumbnail.
+      const [prevRes, tipsRes] = await Promise.all([
+        supabase.rpc('public_home_preview'),
+        supabase.rpc('public_tips_preview'),
+      ])
+      const rows = prevRes.data || []
+      return {
+        featured: rows.filter(r => r.is_featured)
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).slice(0, 6),
+        trending: rows.filter(r => r.is_trending)
+          .sort((a, b) => (a.trending_order || 0) - (b.trending_order || 0)).slice(0, 6),
+        tips: tipsRes.data || [],
+      }
     }
 
-    fetchData()
+    function apply(d) {
+      setFeaturedProjects(d.featured || [])
+      setTrendingProjects(d.trending || [])
+      setTipsArticles(d.tips || [])
+    }
+
+    swrQuery(cacheKey, fetchContent, {
+      freshMs: FRESH_SHORT,
+      onRevalidated: (d) => { if (alive) apply(d) },
+    })
+      .then(({ data }) => {
+        if (!alive) return
+        apply(data)
+        setLoading(false)
+      })
+      .catch(() => { if (alive) setLoading(false) })
+
     return () => { alive = false }
   }, [user])
 
   /**
-   * FIX: dulu slide hanya memanggil navigate(link_to) apa adanya.
-   * Kalau admin mengisi URL lengkap (https://...) atau link tanpa garis miring
-   * di depan, React Router tidak bisa memprosesnya dan halaman diam di Home.
+   * Link absolut: hanya http/https yang diizinkan. Tanpa penyaringan ini,
+   * isi kolom "javascript:..." dari panel akan dieksekusi browser saat diklik.
    */
   function handleSlideClick(slide) {
     const raw = (slide.link_to || '').trim()
     if (!raw) return
 
-    // Link absolut: hanya http/https yang diizinkan. Tanpa penyaringan ini,
-    // isi kolom "javascript:..." dari panel akan dieksekusi browser saat diklik.
     if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
       const safe = safeUrl(raw)
       if (!safe) return
@@ -122,15 +169,7 @@ export default function HomePage() {
         className={`gallery-card card-interactive ratio-${ratio}`}
         onClick={() => navigate(`/tools/${proj.id}`)}
       >
-        {proj.thumbnail_url ? (
-          proj.thumbnail_url.match(/\.(mp4|webm|ogg)$/i) ? (
-            <video src={proj.thumbnail_url} autoPlay loop muted playsInline className="card-bg" style={{ objectFit: 'cover' }} />
-          ) : (
-            <img src={proj.thumbnail_url} alt={proj.title} className="card-bg" />
-          )
-        ) : (
-          <div className="card-bg empty-bg" />
-        )}
+        <CardMedia url={proj.thumbnail_url} alt={proj.title} className="card-bg" />
         <div className="card-content">
           <div className="card-type-badge">
             {proj.content_type === 'generator' ? <Play size={10} /> : <FileText size={10} />}
@@ -147,7 +186,7 @@ export default function HomePage() {
       {/* 1. HERO CAROUSEL */}
       <section className="hero-section">
         <div className="carousel-container">
-          {loading ? (
+          {loading && slides.length === 0 ? (
             <div className="skeleton" style={{ height: '180px', borderRadius: '16px' }} />
           ) : slides.length > 0 ? (
             <>
@@ -167,11 +206,13 @@ export default function HomePage() {
                     onClick={() => handleSlideClick(slide)}
                     style={{ minWidth: '100%', flexShrink: 0, cursor: slide.link_to ? 'pointer' : 'default' }}
                   >
-                    {slide.image_url && slide.image_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                      <video src={slide.image_url} autoPlay loop muted playsInline className="slide-image" style={{ objectFit: 'cover', pointerEvents: 'none' }} />
-                    ) : (
-                      <img src={slide.image_url || ''} alt={slide.title} className="slide-image" style={{ pointerEvents: 'none' }} />
-                    )}
+                    <CardMedia
+                      url={slide.image_url}
+                      alt={slide.title}
+                      className="slide-image"
+                      style={{ pointerEvents: 'none' }}
+                      emptyClassName="slide-image"
+                    />
                     <div className="slide-overlay" style={{ pointerEvents: 'none' }}>
                       <span className="slide-tag">{slide.tag_text}</span>
                       <h3 className="slide-title">{slide.title}</h3>
@@ -202,14 +243,14 @@ export default function HomePage() {
           <h2 className="section-title">Kategori</h2>
         </div>
         <div className="categories-scroll">
-          {loading ? (
+          {categories.length === 0 ? (
             Array(4).fill(0).map((_, i) => <div key={i} className="skeleton" style={{ width: 100, height: 36, borderRadius: 20, flexShrink: 0 }} />)
           ) : (
             categories.map(cat => (
-              <div key={cat.id} className="category-item" onClick={() => navigate(`/tools?category=${cat.id}`)}>
+              <div key={cat.id} className="category-item" onClick={() => navigate(`/tools?category=${cat.slug || cat.id}`)}>
                 <div className="cat-image-box">
                   {cat.icon?.startsWith('http') ? (
-                    <img src={cat.icon} alt={cat.name} />
+                    <CachedImage src={cat.icon} alt={cat.name} />
                   ) : (
                     <span style={{ fontSize: '32px' }}>{cat.icon || '📁'}</span>
                   )}
@@ -230,7 +271,7 @@ export default function HomePage() {
           </button>
         </div>
 
-        {loading ? (
+        {loading && featuredProjects.length === 0 ? (
           <div className="gallery-grid">
             {Array(4).fill(0).map((_, i) => <div key={i} className="skeleton" style={{ paddingTop: '133%', borderRadius: 12 }} />)}
           </div>
@@ -242,7 +283,7 @@ export default function HomePage() {
       </section>
 
       {/* 3B. TRENDING */}
-      {(!loading && trendingProjects.length > 0) && (
+      {trendingProjects.length > 0 && (
         <section className="featured-section">
           <div className="section-header">
             <h2 className="section-title">Lagi Tren Sekarang 🔥</h2>
@@ -252,10 +293,10 @@ export default function HomePage() {
       )}
 
       {/* 3C. TIPS & TRIK */}
-      {(!loading && tipsArticles.length > 0) && (
+      {tipsArticles.length > 0 && (
         <section className="featured-section">
           <div className="section-header">
-            <h2 className="section-title">Tips & Trik 💡</h2>
+            <h2 className="section-title">Tips &amp; Trik 💡</h2>
             <button className="btn-see-all" onClick={() => navigate('/tips')}>
               Lihat Semua <ChevronRight size={14} />
             </button>
@@ -276,7 +317,7 @@ export default function HomePage() {
                 >
                   <div className="ah-row-media">
                     {art.thumbnail_url
-                      ? <img className="ah-img" src={art.thumbnail_url} alt="" loading="lazy" />
+                      ? <CachedImage className="ah-img" src={art.thumbnail_url} alt="" />
                       : <div className="ah-img ah-img--empty" aria-hidden="true">💡</div>}
                   </div>
                   <div className="ah-row-body">

@@ -6,6 +6,7 @@ import {
   ClipboardList, Wrench, ExternalLink, AlertCircle,
   ArrowUp, ArrowDown, ListOrdered, Flame
 } from 'lucide-react'
+import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
 
 const EMPTY_FORM = {
@@ -34,7 +35,6 @@ export default function AdminProjects() {
   const [reordering, setReordering] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
 
   // 'catalog'  -> urutan umum (Home rekomendasi + halaman Tools)
@@ -65,22 +65,9 @@ export default function AdminProjects() {
     setLoading(false)
   }
 
-  async function handleUploadThumbnail(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `thumbnails/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('media').upload(path, file)
-    if (error) {
-      toast(`Gagal upload thumbnail: ${error.message}`, 'error', 6000)
-    } else {
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path)
-      setForm(prev => ({ ...prev, thumbnail_url: urlData.publicUrl }))
-      toast('Thumbnail berhasil diupload', 'success')
-    }
-    setUploading(false)
-  }
+  // v5.5 — logika upload dipindah ke <MediaUploadField>. Komponen itu
+  // menampilkan preview dari file lokal sebelum upload dimulai, mengecilkan
+  // gambar ke WebP, memakai cacheControl 1 tahun, dan selalu melaporkan error.
 
   function validate({ forPublish }) {
     const errors = []
@@ -397,23 +384,19 @@ export default function AdminProjects() {
           {/* 4. MEDIA */}
           <div className="crud-form-row">
             <div className="field-group">
-              <label className="field-label">Thumbnail</label>
-              {form.thumbnail_url ? (
-                <div className="upload-preview">
-                  {form.thumbnail_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                    <video src={form.thumbnail_url} controls style={{ width: '100%', borderRadius: 8 }} />
-                  ) : (
-                    <img src={form.thumbnail_url} alt="thumb" style={{ width: '100%', borderRadius: 8 }} />
-                  )}
-                  <button className="remove-preview" onClick={() => setForm({ ...form, thumbnail_url: '' })}>×</button>
-                </div>
-              ) : (
-                <label className="upload-area">
-                  <input type="file" accept="image/*,video/*" onChange={handleUploadThumbnail} />
-                  <div className="upload-icon">📤</div>
-                  <div className="upload-text">{uploading ? 'Mengupload...' : 'Klik untuk upload gambar atau video'}</div>
-                </label>
-              )}
+              <MediaUploadField
+                label="Thumbnail"
+                value={form.thumbnail_url}
+                folder="thumbnails"
+                accept="image/*,video/*"
+                kind="both"
+                previewHeight={170}
+                onUploaded={url => setForm(prev => ({ ...prev, thumbnail_url: url }))}
+                onRemove={() => setForm(prev => ({ ...prev, thumbnail_url: '' }))}
+                onError={msg => toast(msg, 'error', 8000)}
+                onSuccess={msg => toast(msg, 'success')}
+                hint="Gambar otomatis dikecilkan ke WebP. Kalau memakai video, usahakan di bawah 8 MB — thumbnail video ikut terhitung egress tiap kali kartunya tampil."
+              />
             </div>
 
             <div className="field-group">
@@ -573,9 +556,9 @@ export default function AdminProjects() {
                 <td>
                   {p.thumbnail_url ? (
                     p.thumbnail_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                      <video src={p.thumbnail_url} muted style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6 }} />
+                      <video src={p.thumbnail_url} muted preload="none" style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
                     ) : (
-                      <img src={p.thumbnail_url} alt="" style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6 }} />
+                      <img loading="lazy" decoding="async" src={p.thumbnail_url} alt="" style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6 }} />
                     )
                   ) : (
                     <div style={{ width: 48, height: 36, background: 'var(--bg-dark)', borderRadius: 6 }} />

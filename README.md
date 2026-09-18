@@ -7,7 +7,7 @@ Katalog prompt dan tool AI. Dua aplikasi terpisah yang berbagi satu database Sup
 | `prompthub-web/` | Website untuk pengunjung | userwebsiteprompthub |
 | `prompthub-admin/` | Panel pengelola konten | paneladminuserweb |
 
-Versi berjalan: **v5.4**
+Versi berjalan: **v5.5**
 
 ---
 
@@ -75,4 +75,10 @@ memang mau mengosongkan struktur v5.
   `prompt_data` berukuran besar.
 - Semua tabel memakai Row Level Security. Kalau ada fitur yang "tidak jalan
   tanpa pesan error", kemungkinan besar tertahan RLS, bukan bug UI.
-- Baca `docs/HANDOFF-AI.md` sebelum mengubah apa pun.
+- Media (gambar & video) disimpan di device pengunjung lewat
+  `src/lib/mediaCache.js`. Jangan memasang `<video autoPlay>` langsung ke
+  URL Supabase — pakai `<CardMedia>`.
+- Upload dari panel hanya lewat `MediaUploadField`, jangan memanggil
+  `supabase.storage.upload()` langsung.
+- Baca `docs/HANDOFF-AI.md` sebelum mengubah apa pun, dan
+  `docs/PANDUAN-V5.5.md` untuk cara verifikasi cache & cache-control.

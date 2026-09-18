@@ -1,0 +1,401 @@
+/* ============================================================
+   ArticlesPage.css — v5.4
+   Dipakai oleh: InfoPage (Info AI), TipsPage (Tips & Trik),
+                 ArticleDetailPage (halaman baca).
+
+   Prinsip utama perbaikan v5.4:
+   setiap kartu punya tinggi yang identik. Kotak gambar memakai
+   rasio tetap dengan object-fit: cover, judul dipotong 2 baris,
+   ringkasan dipotong 2 baris. Thumbnail setinggi apa pun tidak
+   lagi menarik tinggi baris dan meninggalkan area kosong.
+   ============================================================ */
+
+/* ── Kerangka halaman (dipakai juga oleh halaman lain) ───────── */
+.articles-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 16px 8px;
+}
+
+.page-header { margin-bottom: 0; }
+
+.page-title {
+  color: var(--text-white);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.articles-list { display: block; }
+
+.loading-text,
+.empty-state {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 40px 0;
+  text-align: center;
+}
+
+/* ── Grid kartu ──────────────────────────────────────────────
+   Satu kolom di HP supaya gambar berita tampil lebar seperti
+   aplikasi berita. Dua kolom baru dipakai di layar lebih besar. */
+.ah-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 600px) {
+  .ah-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .ah-card--featured { grid-column: 1 / -1; }
+}
+
+@media (min-width: 960px) {
+  .ah-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ── Kartu ───────────────────────────────────────────────── */
+.ah-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.ah-card:hover { background: var(--bg-card-hover); border-color: var(--border-light); }
+.ah-card:active { transform: scale(0.99); }
+
+.ah-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Kotak gambar: rasio dikunci, gambar dipotong rapi di tengah. */
+.ah-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.ah-card--featured .ah-media { aspect-ratio: 16 / 10; }
+
+.ah-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.ah-img--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  background: linear-gradient(135deg, #1b1b1b, #101010);
+}
+
+/* Label kecil di atas gambar. */
+.ah-chip {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.62);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.ah-card--news .ah-chip { box-shadow: inset 2px 0 0 var(--accent); }
+.ah-card--tips .ah-chip { box-shadow: inset 2px 0 0 var(--accent-amber); }
+
+/* Garis tipis pemisah gambar dan isi — pembeda "modul" untuk Tips. */
+.ah-card--tips .ah-media { border-bottom: 2px solid var(--accent-amber); }
+.ah-card--news.ah-card--featured .ah-media { border-bottom: 2px solid var(--accent); }
+
+.ah-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ah-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ah-title {
+  color: var(--text-white);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  /* Dua baris pas, tinggi tetap walaupun judulnya pendek. */
+  min-height: calc(2 * 1.35em);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.ah-card--featured .ah-title { font-size: 19px; line-height: 1.3; min-height: calc(2 * 1.3em); }
+
+.ah-excerpt {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+  min-height: calc(2 * 1.55em);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.ah-card--featured .ah-excerpt {
+  -webkit-line-clamp: 3;
+  min-height: calc(3 * 1.55em);
+}
+
+.ah-excerpt--empty { color: var(--text-muted); font-style: italic; }
+
+/* Kartu kompak untuk daftar Tips di Homepage. */
+.ah-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  padding: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.ah-row:hover { background: var(--bg-card-hover); border-color: var(--border-light); }
+.ah-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ah-row-media {
+  width: 96px;
+  flex-shrink: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.ah-row-body { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
+
+.ah-row-title {
+  color: var(--text-white);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ah-row-excerpt {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ah-row-meta { font-size: 11px; color: var(--text-muted); }
+
+/* ============================================================
+   HALAMAN BACA ARTIKEL
+   ============================================================ */
+.ah-article { padding-bottom: 40px; max-width: 760px; margin: 0 auto; }
+
+.ah-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.ah-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px 7px 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ah-back:hover { color: var(--text-white); border-color: var(--border-light); }
+
+.ah-hero {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  margin-bottom: 18px;
+}
+
+.ah-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.ah-article-inner { padding: 0 16px; }
+
+.ah-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.ah-kicker-tag {
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-weight: 700;
+  color: var(--accent-light);
+  background: var(--accent-glow);
+}
+
+.ah-kicker-tag--tips { color: #fbbf24; background: rgba(245, 158, 11, 0.16); }
+
+.ah-article-title {
+  color: var(--text-white);
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: -0.4px;
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+}
+
+.ah-article-sep {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0 0 18px;
+  border: none;
+}
+
+/* ── Isi artikel ─────────────────────────────────────────── */
+.ah-richtext { color: var(--text-primary); font-size: 14.5px; line-height: 1.8; }
+.ah-richtext > *:first-child { margin-top: 0; }
+
+.ah-p { margin: 0 0 14px; overflow-wrap: anywhere; }
+
+.ah-h { color: var(--text-white); font-weight: 800; line-height: 1.3; margin: 22px 0 10px; }
+.ah-h2 { font-size: 18px; }
+.ah-h3 { font-size: 16px; }
+.ah-h4 { font-size: 14.5px; }
+
+.ah-list { margin: 0 0 14px; padding-left: 20px; }
+.ah-list li { margin-bottom: 6px; }
+
+.ah-quote {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: rgba(59, 130, 246, 0.07);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-secondary);
+}
+
+.ah-rule { height: 1px; background: var(--border-subtle); border: none; margin: 20px 0; }
+
+.ah-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-subtle);
+  overflow-wrap: anywhere;
+}
+
+.ah-inline-link { color: var(--accent-light); text-decoration: underline; overflow-wrap: anywhere; }
+
+/* ── Blok sumber di akhir artikel ────────────────────────── */
+.ah-source {
+  margin-top: 26px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.ah-source-label { font-size: 13px; font-weight: 700; color: var(--text-white); margin-bottom: 4px; }
+.ah-source-host { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; overflow-wrap: anywhere; }
+
+.ah-source-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  text-decoration: none;
+}
+
+.ah-endnote {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Keadaan kosong / terkunci ───────────────────────────── */
+.ah-notice {
+  margin: 40px 16px;
+  padding: 28px 20px;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.ah-notice-title { color: var(--text-white); font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.ah-notice-text { color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-card, .ah-row { transition: none; }
+  .ah-card:active { transform: none; }
+}

@@ -1,0 +1,135 @@
+/* ========================================
+   SHARED ADMIN CRUD STYLES
+   ======================================== */
+
+.crud-form {
+  margin-bottom: 24px;
+  animation: fadeUp 0.3s ease;
+}
+
+.crud-form-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin-bottom: 16px;
+}
+
+.crud-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.crud-form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.crud-form-row .field-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.crud-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Toggle switches in forms */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* File upload area */
+.upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 24px 12px;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: var(--bg-dark);
+  min-height: 120px;
+}
+
+.upload-area:hover {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.upload-area input[type="file"] {
+  display: none;
+}
+
+.upload-area .upload-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.upload-area .upload-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.upload-preview {
+  position: relative;
+  display: inline-block;
+  margin-top: 8px;
+}
+
+.upload-preview img {
+  max-width: 200px;
+  max-height: 120px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.upload-preview .remove-preview {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  background: var(--accent-red);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+}
+
+.empty-state .empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.empty-state .empty-text {
+  font-size: 14px;
+  margin-bottom: 16px;
+}

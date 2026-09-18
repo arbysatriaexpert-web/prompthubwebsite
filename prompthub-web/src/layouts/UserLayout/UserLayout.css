@@ -1,0 +1,199 @@
+/* ========================================
+   USER LAYOUT (Responsive)
+   ======================================== */
+
+.user-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  background: var(--bg-darkest);
+}
+
+/* ── Header ── */
+.user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--text-white);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--bg-darkest);
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-white);
+  letter-spacing: -0.3px;
+}
+
+/* ── Desktop Nav ── */
+.desktop-nav {
+  display: none;
+  gap: 24px;
+  align-items: center;
+}
+
+.d-nav-item {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.d-nav-item:hover, .d-nav-item.active {
+  color: var(--text-white);
+}
+
+/* ── Header Right ── */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-greeting {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.btn-login {
+  background: var(--accent);
+  color: var(--text-white);
+  border: none;
+  padding: 8px 20px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-login:hover {
+  filter: brightness(1.15);
+  box-shadow: var(--shadow-glow);
+}
+
+/* ── Main Content ── */
+.user-content {
+  padding-bottom: 80px; /* space for bottom nav on mobile */
+  min-height: calc(100vh - 60px);
+}
+
+/* ── Bottom Navigation (Mobile Only) ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  padding: 6px 0 10px;
+  z-index: 100;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  color: var(--text-secondary);
+}
+
+.nav-item.active {
+  color: var(--text-white);
+}
+
+/* ========================================
+   RESPONSIVE QUERIES
+   ======================================== */
+@media (min-width: 768px) {
+  .desktop-nav {
+    display: flex;
+  }
+  
+  .bottom-nav {
+    display: none;
+  }
+  
+  .user-content {
+    padding-bottom: 40px; /* remove bottom nav space */
+  }
+}
+
+/* ── Floating WhatsApp Button ── */
+.floating-wa-btn {
+  position: fixed;
+  bottom: 80px; /* Above bottom nav */
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background: #25D366;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+  z-index: 50;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.floating-wa-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(37, 211, 102, 0.6);
+  color: white;
+}
+
+@media (min-width: 768px) {
+  .floating-wa-btn {
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+  }
+}

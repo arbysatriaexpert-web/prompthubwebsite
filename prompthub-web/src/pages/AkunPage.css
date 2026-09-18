@@ -1,0 +1,290 @@
+/* ========================================
+   AKUN PAGE
+   ======================================== */
+
+.akun-page {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* ── Profile Header ── */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  position: relative;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 900;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-white);
+  margin-bottom: 4px;
+}
+
+.profile-email {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.profile-role {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.btn-logout {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-logout:hover {
+  background: #ef4444;
+  color: white;
+}
+
+@media (max-width: 480px) {
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  .profile-info {
+    margin-bottom: 12px;
+  }
+  .btn-logout {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Tabs ── */
+.akun-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-dark);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+}
+
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+  color: var(--text-secondary);
+}
+
+.tab-btn.active {
+  background: var(--bg-elevated);
+  color: var(--text-white);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Tab Content ── */
+.tab-content {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Bookmarks Grid */
+.bookmarks-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .bookmarks-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.bookmark-card {
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.bookmark-card:hover {
+  border-color: var(--text-secondary);
+  transform: translateY(-2px);
+}
+
+.bookmark-thumb {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.bookmark-details {
+  padding: 12px;
+}
+
+.bookmark-details h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Request Form ── */
+.request-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.success-box {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid #22c55e;
+  color: #22c55e;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ── Upload Box di Request Form ── */
+.upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  border: 2px dashed var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-dark);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.upload-dropzone:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.upload-dropzone.uploading {
+  opacity: 0.7;
+  cursor: not-allowed;
+  animation: pulse 1.5s infinite;
+}
+
+.upload-icon-lg {
+  color: inherit;
+  margin-bottom: 4px;
+}
+
+.upload-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.media-preview-box {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preview-media {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.btn-remove-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-remove-media:hover {
+  background: var(--accent-red);
+  color: var(--text-white);
+}

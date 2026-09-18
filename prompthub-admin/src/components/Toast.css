@@ -1,0 +1,98 @@
+/* ============================================================
+   TOAST — selalu terlihat, tidak pernah kepotong layar.
+   position: fixed + z-index tertinggi + aman dari notch HP.
+   ============================================================ */
+
+.toast-viewport {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  z-index: 2147483000; /* di atas modal, sidebar, overlay apa pun */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: min(380px, calc(100vw - 32px));
+  width: max-content;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: #fff;
+  background: #1c1c28;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  animation: toast-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  word-break: break-word;
+}
+
+.toast-success {
+  background: linear-gradient(180deg, #0f2a20 0%, #10221b 100%);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #a7f3d0;
+}
+
+.toast-error {
+  background: linear-gradient(180deg, #2c1416 0%, #221113 100%);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fecaca;
+}
+
+.toast-info {
+  background: linear-gradient(180deg, #151a33 0%, #121529 100%);
+  border-color: rgba(99, 102, 241, 0.45);
+  color: #c7d2fe;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.toast-msg {
+  flex: 1;
+  white-space: pre-line;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: currentColor;
+  opacity: 0.55;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Di layar kecil, toast melebar penuh di ATAS layar supaya
+   tidak tertutup sidebar / tombol melayang. */
+@media (max-width: 640px) {
+  .toast-viewport {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    width: auto;
+  }
+}

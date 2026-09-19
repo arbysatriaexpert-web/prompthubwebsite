@@ -193,9 +193,7 @@ export default function HomePage() {
               <div
                 className="carousel-track"
                 style={{
-                  display: 'flex',
-                  transition: 'transform 0.5s ease-in-out',
-                  transform: `translateX(-${currentSlideIndex * 100}%)`,
+                  transform: `translateX(calc(${currentSlideIndex} * -1 * (var(--slide-width) + var(--slide-gap))))`,
                 }}
               >
                 {slides.map(slide => (
@@ -204,7 +202,7 @@ export default function HomePage() {
                     className="carousel-slide"
                     role={slide.link_to ? 'button' : undefined}
                     onClick={() => handleSlideClick(slide)}
-                    style={{ minWidth: '100%', flexShrink: 0, cursor: slide.link_to ? 'pointer' : 'default' }}
+                    style={{ cursor: slide.link_to ? 'pointer' : 'default' }}
                   >
                     <CardMedia
                       url={slide.image_url}

@@ -50,25 +50,31 @@
 
 .carousel-container {
   width: 100%;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-card);
+  overflow: hidden; /* clip the sliding track */
+  border-radius: var(--radius-lg);
 }
 
 .carousel-track {
+  --slide-width: 100%;
+  --slide-gap: 0px;
   display: flex;
+  gap: var(--slide-gap);
   width: 100%;
+  transition: transform 0.5s ease-in-out;
 }
 
 .carousel-slide {
-  flex: 0 0 100%;
+  flex: 0 0 var(--slide-width);
   position: relative;
   scroll-snap-align: start;
-  aspect-ratio: 21 / 9;
+  aspect-ratio: 16 / 9;
   cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 .slide-image {
@@ -108,11 +114,53 @@
   line-height: 1.2;
 }
 
+.carousel-indicators {
+  position: absolute;
+  bottom: 12px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.carousel-indicators .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.carousel-indicators .dot.active {
+  background: var(--text-white);
+  transform: scale(1.3);
+}
+
 .empty-hero {
   padding: 40px;
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+@media (min-width: 768px) {
+  .carousel-container {
+    border-radius: 0;
+  }
+  .carousel-track {
+    --slide-gap: 16px;
+    --slide-width: calc(50% - 8px); /* 2 slides visible */
+  }
+  .carousel-slide {
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-md);
+  }
+  .carousel-indicators {
+    display: none;
+  }
 }
 
 /* ── Categories ── */

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, Pencil, Trash2, Save, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Save, X, GripVertical } from 'lucide-react'
 import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
 import { useToast } from '../../components/Toast'
@@ -14,8 +14,10 @@ export default function AdminPopupBanners() {
   const [form, setForm] = useState({
     title: '', message: '', image_url: '', link_url: '',
     button_label: 'Lihat Selengkapnya', is_active: true,
-    show_after_login: true, display_mode: 'daily', start_at: '', end_at: '', sort_order: 0,
+    show_after_login: true, display_mode: 'daily', start_at: '', end_at: '',
   })
+  const [reordering, setReordering] = useState(false)
+  const [dragId, setDragId] = useState(null)
 
   useEffect(() => { fetchBanners() }, [])
 
@@ -46,7 +48,6 @@ export default function AdminPopupBanners() {
       display_mode: form.display_mode,
       start_at: form.start_at || null,
       end_at: form.end_at || null,
-      sort_order: Number(form.sort_order),
       updated_at: new Date().toISOString(),
     }
 
@@ -71,6 +72,38 @@ export default function AdminPopupBanners() {
     fetchBanners()
   }
 
+  async function handleDrop(targetIndex) {
+    if (!dragId) return
+    const sourceIndex = banners.findIndex(x => x.id === dragId)
+    setDragId(null)
+    
+    if (sourceIndex === targetIndex || sourceIndex === -1) return
+
+    setReordering(true)
+    const newArr = [...banners]
+    const [moved] = newArr.splice(sourceIndex, 1)
+    newArr.splice(targetIndex, 0, moved)
+    
+    setBanners(newArr)
+
+    const updates = []
+    newArr.forEach((b, idx) => {
+      const expectedOrder = idx + 1
+      if (b.sort_order !== expectedOrder) {
+        updates.push(supabase.from('popup_banners').update({ sort_order: expectedOrder }).eq('id', b.id))
+      }
+    })
+
+    if (updates.length > 0) {
+      const results = await Promise.all(updates)
+      if (results.some(r => r.error)) {
+        toast('Gagal menyimpan urutan baru', 'error')
+        fetchBanners()
+      }
+    }
+    setReordering(false)
+  }
+
   function startEdit(b) {
     setEditingId(b.id)
     setForm({
@@ -84,7 +117,6 @@ export default function AdminPopupBanners() {
       display_mode: b.display_mode || 'daily',
       start_at: b.start_at ? b.start_at.slice(0, 16) : '',
       end_at: b.end_at ? b.end_at.slice(0, 16) : '',
-      sort_order: b.sort_order || 0,
     })
     setShowForm(true)
   }
@@ -94,7 +126,7 @@ export default function AdminPopupBanners() {
     setForm({
       title: '', message: '', image_url: '', link_url: '',
       button_label: 'Lihat Selengkapnya', is_active: true,
-      show_after_login: true, display_mode: 'daily', start_at: '', end_at: '', sort_order: 0,
+      show_after_login: true, display_mode: 'daily', start_at: '', end_at: '',
     })
     setShowForm(false)
   }
@@ -115,10 +147,6 @@ export default function AdminPopupBanners() {
             <div className="field-group">
               <label className="field-label">Judul *</label>
               <input className="input" value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="Promo Spesial!" />
-            </div>
-            <div className="field-group">
-              <label className="field-label">Urutan</label>
-              <input className="input" type="number" value={form.sort_order} onChange={e => setForm({...form, sort_order: e.target.value})} />
             </div>
           </div>
           <div className="field-group">
@@ -213,11 +241,27 @@ export default function AdminPopupBanners() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {banners.map(b => (
-            <div key={b.id} className="card" style={{ padding: '14px', opacity: b.is_active ? 1 : 0.5 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          {banners.map((b, i) => (
+            <div key={b.id} className="card"
+              draggable={!reordering}
+              onDragStart={() => setDragId(b.id)}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+              onDrop={(e) => { e.preventDefault(); handleDrop(i) }}
+              style={{
+                padding: '14px', 
+                opacity: b.is_active ? (dragId === b.id ? 0.4 : (reordering ? 0.6 : 1)) : (dragId === b.id ? 0.2 : 0.5),
+                cursor: reordering ? 'wait' : 'grab',
+                background: dragId === b.id ? 'var(--bg-dark)' : 'var(--bg-card)',
+                transition: 'opacity 0.2s, background 0.2s'
+              }}
+            >
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <div style={{ marginTop: '4px' }}>
+                  <GripVertical size={16} color="var(--text-muted)" style={{ cursor: reordering ? 'wait' : 'grab' }} />
+                </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>#{i + 1}</span>
                     <span style={{ fontWeight: 700, color: 'var(--text-white)', fontSize: '14px' }}>{b.title}</span>
                     <span className={`badge ${b.is_active ? 'badge-green' : 'badge-red'}`} style={{ fontSize: '10px' }}>
                       {b.is_active ? 'Aktif' : 'Nonaktif'}

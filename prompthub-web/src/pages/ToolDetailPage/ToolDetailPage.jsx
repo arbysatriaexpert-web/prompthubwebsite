@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { ArrowLeft, Heart, Copy, Check, Bug, ExternalLink, AlertCircle, Play } from 'lucide-react'
+import { ArrowLeft, Heart, Copy, Check, Bug, ExternalLink, AlertCircle, Play, ChevronDown, ChevronUp } from 'lucide-react'
 import { CachedVideo } from '../../components/CachedMedia'
 import { swrQuery, dropCache, FRESH_SHORT } from '../../lib/dataCache'
 import './ToolDetailPage.css'
@@ -134,6 +134,7 @@ export default function ToolDetailPage() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [promptExpanded, setPromptExpanded] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -304,8 +305,37 @@ export default function ToolDetailPage() {
             <h3 className="card-heading">Teks Prompt</h3>
             {promptText ? (
               <>
-                <div className="prompt-text-box">{promptText}</div>
-                <button className="btn btn-primary w-full mt-4" onClick={handleCopy}>
+                <div style={{ position: 'relative' }}>
+                  <div className="prompt-text-box" style={{ 
+                    maxHeight: promptExpanded ? 'none' : '150px', 
+                    overflow: 'hidden', 
+                    transition: 'max-height 0.3s ease',
+                    marginBottom: promptExpanded ? '16px' : '0'
+                  }}>
+                    {promptText}
+                  </div>
+                  {!promptExpanded && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: '60px',
+                      background: 'linear-gradient(transparent, var(--bg-card))',
+                      pointerEvents: 'none'
+                    }} />
+                  )}
+                </div>
+                
+                <button 
+                  className="btn btn-ghost w-full mt-2" 
+                  onClick={() => setPromptExpanded(!promptExpanded)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, marginBottom: promptExpanded ? 12 : 0 }}
+                >
+                  {promptExpanded ? <><ChevronUp size={16} /> Sembunyikan</> : <><ChevronDown size={16} /> Baca Selengkapnya</>}
+                </button>
+
+                <button className="btn btn-primary w-full" onClick={handleCopy}>
                   {copied ? <><Check size={16} /> Disalin!</> : <><Copy size={16} /> Salin Prompt</>}
                 </button>
               </>

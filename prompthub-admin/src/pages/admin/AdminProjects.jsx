@@ -4,7 +4,7 @@ import { useToast } from '../../components/Toast'
 import {
   Plus, Pencil, Trash2, Save, X, Eye, EyeOff,
   ClipboardList, Wrench, ExternalLink, AlertCircle,
-  ArrowUp, ArrowDown, ListOrdered, Flame
+  ArrowUp, ArrowDown, ListOrdered, Flame, GripVertical
 } from 'lucide-react'
 import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
@@ -33,6 +33,7 @@ export default function AdminProjects() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [reordering, setReordering] = useState(false)
+  const [dragId, setDragId] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -146,38 +147,41 @@ export default function AdminProjects() {
     fetchAll()
   }
 
-  /** Tukar posisi dengan tetangga di atas/bawah */
-  async function move(index, dir) {
-    const target = index + dir
-    if (target < 0 || target >= projects.length) return
+  /** Drag & Drop Handler */
+  async function handleDrop(targetIndex) {
+    if (!dragId) return
+    const sourceIndex = projects.findIndex(x => x.id === dragId)
+    setDragId(null)
+    
+    if (sourceIndex === targetIndex || sourceIndex === -1) return
 
     setReordering(true)
-    const a = projects[index]
-    const b = projects[target]
+    const newArr = [...projects]
+    const [moved] = newArr.splice(sourceIndex, 1)
+    newArr.splice(targetIndex, 0, moved)
+    
+    // Optimistic: geser di layar dulu
+    setProjects(newArr)
 
-    // Nilai urutan bisa kembar/nol. Normalkan dulu berdasarkan posisi tampil.
-    const valA = a[orderField] ?? 0
-    const valB = b[orderField] ?? 0
-    const newA = valA === valB ? target + 1 : valB
-    const newB = valA === valB ? index + 1 : valA
+    // Update baris yang posisinya berubah (hanya antara start dan end untuk hemat kuota)
+    const updates = []
+    newArr.forEach((p, idx) => {
+      const expectedOrder = idx + 1
+      if (p[orderField] !== expectedOrder) {
+        updates.push(
+          supabase.from('projects').update({ [orderField]: expectedOrder }).eq('id', p.id)
+        )
+      }
+    })
 
-    // Optimistic: geser di layar dulu supaya terasa instan
-    const next = [...projects]
-    next[index] = b
-    next[target] = a
-    setProjects(next)
-
-    const [r1, r2] = await Promise.all([
-      supabase.from('projects').update({ [orderField]: newA }).eq('id', a.id),
-      supabase.from('projects').update({ [orderField]: newB }).eq('id', b.id),
-    ])
-
-    setReordering(false)
-
-    if (r1.error || r2.error) {
-      toast(`Gagal mengubah urutan: ${(r1.error || r2.error).message}`, 'error', 6000)
-      fetchAll()
+    if (updates.length > 0) {
+      const results = await Promise.all(updates)
+      if (results.some(r => r.error)) {
+        toast('Gagal menyimpan urutan baru', 'error')
+        fetchAll()
+      }
     }
+    setReordering(false)
   }
 
   /** Rapikan ulang jadi 1,2,3,... supaya urutan stabil */
@@ -537,26 +541,28 @@ export default function AdminProjects() {
           </thead>
           <tbody>
             {projects.map((p, i) => (
-              <tr key={p.id}>
+              <tr key={p.id}
+                draggable={!reordering}
+                onDragStart={() => setDragId(p.id)}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                onDrop={(e) => { e.preventDefault(); handleDrop(i) }}
+                style={{
+                  opacity: dragId === p.id ? 0.4 : (reordering ? 0.6 : 1),
+                  cursor: reordering ? 'wait' : 'grab',
+                  background: dragId === p.id ? 'var(--bg-dark)' : 'transparent',
+                  transition: 'opacity 0.2s, background 0.2s'
+                }}
+              >
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 18 }}>{i + 1}</span>
-                    <button className="btn btn-ghost btn-sm" title="Naikkan"
-                      disabled={i === 0 || reordering} onClick={() => move(i, -1)}
-                      style={{ padding: 4, opacity: i === 0 ? 0.25 : 1 }}>
-                      <ArrowUp size={13} />
-                    </button>
-                    <button className="btn btn-ghost btn-sm" title="Turunkan"
-                      disabled={i === projects.length - 1 || reordering} onClick={() => move(i, 1)}
-                      style={{ padding: 4, opacity: i === projects.length - 1 ? 0.25 : 1 }}>
-                      <ArrowDown size={13} />
-                    </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <GripVertical size={14} color="var(--text-muted)" style={{ cursor: reordering ? 'wait' : 'grab' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 18, textAlign: 'center' }}>{i + 1}</span>
                   </div>
                 </td>
                 <td>
                   {p.thumbnail_url ? (
                     p.thumbnail_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                      <video src={p.thumbnail_url} muted preload="none" style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
+                      <video src={p.thumbnail_url} muted preload="metadata" style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
                     ) : (
                       <img loading="lazy" decoding="async" src={p.thumbnail_url} alt="" style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6 }} />
                     )

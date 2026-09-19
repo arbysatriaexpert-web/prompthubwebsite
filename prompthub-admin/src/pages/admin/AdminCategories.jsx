@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, Pencil, Trash2, Save, X, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Save, X, Upload, GripVertical } from 'lucide-react'
 import MediaUploadField from '../../components/MediaUploadField'
 import './AdminCrud.css'
 import { useToast } from '../../components/Toast'
@@ -19,8 +19,10 @@ export default function AdminCategories() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({ name: '', icon: '', sort_order: 0, slug: '', is_active: true })
+  const [form, setForm] = useState({ name: '', icon: '', slug: '', is_active: true })
   const [showForm, setShowForm] = useState(false)
+  const [reordering, setReordering] = useState(false)
+  const [dragId, setDragId] = useState(null)
 
   // v5.5 — upload ditangani <MediaUploadField>.
 
@@ -50,7 +52,6 @@ export default function AdminCategories() {
       await supabase.from('categories').update({
         name: form.name,
         icon: form.icon,
-        sort_order: Number(form.sort_order),
         slug,
         is_active: form.is_active,
       }).eq('id', editingId)
@@ -58,7 +59,6 @@ export default function AdminCategories() {
       await supabase.from('categories').insert({
         name: form.name,
         icon: form.icon,
-        sort_order: Number(form.sort_order),
         slug,
         is_active: form.is_active,
       })
@@ -79,12 +79,43 @@ export default function AdminCategories() {
     fetchCategories()
   }
 
+  async function handleDrop(targetIndex) {
+    if (!dragId) return
+    const sourceIndex = categories.findIndex(x => x.id === dragId)
+    setDragId(null)
+    
+    if (sourceIndex === targetIndex || sourceIndex === -1) return
+
+    setReordering(true)
+    const newArr = [...categories]
+    const [moved] = newArr.splice(sourceIndex, 1)
+    newArr.splice(targetIndex, 0, moved)
+    
+    setCategories(newArr)
+
+    const updates = []
+    newArr.forEach((cat, idx) => {
+      const expectedOrder = idx + 1
+      if (cat.sort_order !== expectedOrder) {
+        updates.push(supabase.from('categories').update({ sort_order: expectedOrder }).eq('id', cat.id))
+      }
+    })
+
+    if (updates.length > 0) {
+      const results = await Promise.all(updates)
+      if (results.some(r => r.error)) {
+        toast('Gagal menyimpan urutan baru', 'error')
+        fetchCategories()
+      }
+    }
+    setReordering(false)
+  }
+
   function startEdit(cat) {
     setEditingId(cat.id)
     setForm({
       name: cat.name,
       icon: cat.icon,
-      sort_order: cat.sort_order,
       slug: cat.slug || generateSlug(cat.name),
       is_active: cat.is_active !== false,
     })
@@ -93,7 +124,7 @@ export default function AdminCategories() {
 
   function resetForm() {
     setEditingId(null)
-    setForm({ name: '', icon: '', sort_order: 0, slug: '', is_active: true })
+    setForm({ name: '', icon: '', slug: '', is_active: true })
     setShowForm(false)
   }
 
@@ -137,10 +168,6 @@ export default function AdminCategories() {
               <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Auto-generate dari nama. Bisa override manual.</p>
             </div>
             <div className="field-group">
-              <label className="field-label">Urutan</label>
-              <input className="input" type="number" value={form.sort_order} onChange={e => setForm({...form, sort_order: e.target.value})} />
-            </div>
-            <div className="field-group">
               <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})} style={{ accentColor: 'var(--accent)' }} />
                 Aktif (tampil di web user)
@@ -162,17 +189,34 @@ export default function AdminCategories() {
         <table className="admin-table">
           <thead>
             <tr>
+              <th style={{ width: 60 }}>Urutan</th>
               <th>Ikon</th>
               <th>Nama</th>
               <th>Slug</th>
-              <th>Urutan</th>
               <th>Status</th>
               <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {categories.map(cat => (
-              <tr key={cat.id} style={{ opacity: cat.is_active === false ? 0.5 : 1 }}>
+            {categories.map((cat, i) => (
+              <tr key={cat.id}
+                draggable={!reordering}
+                onDragStart={() => setDragId(cat.id)}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                onDrop={(e) => { e.preventDefault(); handleDrop(i) }}
+                style={{
+                  opacity: (cat.is_active === false) ? (dragId === cat.id ? 0.2 : 0.5) : (dragId === cat.id ? 0.4 : (reordering ? 0.6 : 1)),
+                  cursor: reordering ? 'wait' : 'grab',
+                  background: dragId === cat.id ? 'var(--bg-dark)' : 'transparent',
+                  transition: 'opacity 0.2s, background 0.2s'
+                }}
+              >
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <GripVertical size={14} color="var(--text-muted)" style={{ cursor: reordering ? 'wait' : 'grab' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 14, textAlign: 'center' }}>{i + 1}</span>
+                  </div>
+                </td>
                 <td style={{ fontSize: '22px' }}>
                   {cat.icon?.startsWith('http') ? (
                     <img loading="lazy" decoding="async" src={cat.icon} alt={cat.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8 }} />
@@ -182,7 +226,6 @@ export default function AdminCategories() {
                 </td>
                 <td>{cat.name}</td>
                 <td style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-muted)' }}>{cat.slug || '—'}</td>
-                <td>{cat.sort_order}</td>
                 <td>
                   <button
                     className={`btn btn-sm ${cat.is_active !== false ? 'btn-primary' : 'btn-ghost'}`}
